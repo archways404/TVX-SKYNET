@@ -1,0 +1,39 @@
+listen_addr: 0.0.0.0:8080
+
+defaults:
+  poll_interval: 5m
+  request_timeout: 15s
+  stale_after: 15m
+  max_concurrency: 16
+  max_response_bytes: 2097152
+
+sources:
+  - id: github
+    name: GitHub
+    category: developer-tools
+    collector:
+      type: statuspage
+      base_url: https://www.githubstatus.com/
+    include_components:
+      - Git Operations
+      - Webhooks
+      - API Requests
+      - Issues
+      - Pull Requests
+      - Actions
+      - Packages
+      - Pages
+      - Copilot
+      - Codespaces
+
+  - id: claude
+    name: Claude
+    category: developer-tools
+    collector:
+      type: statuspage
+      base_url: https://status.claude.com/
+    include_components:
+      - claude.ai
+      - Claude Console (platform.claude.com)
+      - Claude API (api.anthropic.com)
+      - Claude Code

@@ -1,0 +1,20 @@
+services:
+  rss-bridge:
+    image: rssbridge/rss-bridge:latest
+    hostname: rss-bridge
+    restart: unless-stopped
+    ports:
+      - "${RSS_BRIDGE_BIND_ADDRESS:-0.0.0.0}:${RSS_BRIDGE_PORT:-3005}:80"
+    volumes:
+      - rss_bridge_config:/config
+    networks:
+      - tvx_skynet
+
+volumes:
+  rss_bridge_config:
+    name: tvx-skynet-rss-bridge-config
+
+networks:
+  tvx_skynet:
+    external: true
+    name: tvx-skynet

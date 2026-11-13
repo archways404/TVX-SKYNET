@@ -1,0 +1,49 @@
+services:
+  external-status-combinator:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    image: tvx-skynet:local
+    pull_policy: build
+    hostname: external-status-combinator
+    restart: unless-stopped
+    init: true
+    environment:
+      DATABASE_URL: "${DATABASE_URL:?Set DATABASE_URL in the Portainer stack environment}"
+      EXTERNAL_STATUS_CONFIG: /app/config/sources.yaml
+      RUST_LOG: "${RUST_LOG:-external_status_combinator=info,tower_http=info}"
+      STORAGE_BACKEND: postgres
+    ports:
+      - "${TVX_SKYNET_BIND_ADDRESS:-0.0.0.0}:${TVX_SKYNET_PORT:-8080}:8080"
+    networks:
+      - tvx_skynet
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - --silent
+        - --show-error
+        - http://127.0.0.1:8080/health/ready
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    stop_grace_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  tvx_skynet:
+    external: true
+    name: tvx-skynet
