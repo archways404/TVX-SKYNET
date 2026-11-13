@@ -108,8 +108,8 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
-        "w": 12,
+        "h": 6,
+        "w": 10,
         "x": 0,
         "y": 0
       },
@@ -170,11 +170,15 @@
         "type": "grafana-postgresql-datasource",
         "uid": "${DS_TVX_SKYNET}"
       },
-      "description": "Incidents that have not been resolved or completed.",
+      "description": "Providers currently degraded, unavailable, stale, or failing collection. Logos are identifiers; status remains visible as text.",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
           },
           "mappings": [],
           "thresholds": {
@@ -183,43 +187,130 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "orange",
-                "value": 1
-              },
-              {
-                "color": "red",
-                "value": 3
               }
             ]
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Icon"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "altText": "Provider logo",
+                  "titleText": "Provider logo",
+                  "type": "image"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 56
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "degraded": {
+                        "color": "yellow",
+                        "text": "Degraded"
+                      },
+                      "maintenance": {
+                        "color": "blue",
+                        "text": "Maintenance"
+                      },
+                      "major_outage": {
+                        "color": "red",
+                        "text": "Major outage"
+                      },
+                      "operational": {
+                        "color": "green",
+                        "text": "Operational"
+                      },
+                      "partial_outage": {
+                        "color": "orange",
+                        "text": "Partial outage"
+                      },
+                      "unknown": {
+                        "color": "gray",
+                        "text": "Unknown"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Freshness"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "failing": {
+                        "color": "red",
+                        "text": "Poll failing"
+                      },
+                      "fresh": {
+                        "color": "green",
+                        "text": "Fresh"
+                      },
+                      "stale": {
+                        "color": "red",
+                        "text": "Stale"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 12,
+        "h": 6,
+        "w": 14,
+        "x": 10,
         "y": 0
       },
       "id": 2,
       "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
           "fields": "",
-          "values": false
+          "reducer": [
+            "sum"
+          ],
+          "show": false
         },
-        "showPercentChange": false,
-        "textMode": "value_and_name",
-        "wideLayout": true
+        "showHeader": true,
+        "sortBy": []
       },
       "pluginVersion": "12.0.0",
       "targets": [
@@ -231,81 +322,12 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*)::double precision AS \"Active incidents\"\nFROM external_status.active_incidents;",
+          "rawSql": "WITH provider_state AS (\n    SELECT\n        provider.id,\n        provider.name,\n        provider.effective_status,\n        provider.stale,\n        provider.consecutive_failures,\n        COUNT(incident.external_id)::bigint AS incident_count\n    FROM external_status.provider_current AS provider\n    LEFT JOIN external_status.active_incidents AS incident\n        ON incident.provider_id = provider.id\n    GROUP BY\n        provider.id,\n        provider.name,\n        provider.effective_status,\n        provider.stale,\n        provider.consecutive_failures\n), affected AS (\n    SELECT\n        CASE id\n            WHEN 'github' THEN 'https://www.google.com/s2/favicons?domain_url=https://github.com&sz=64'\n            WHEN 'claude' THEN 'https://www.google.com/s2/favicons?domain_url=https://anthropic.com&sz=64'\n            WHEN 'twilio' THEN 'https://www.google.com/s2/favicons?domain_url=https://twilio.com&sz=64'\n            WHEN 'jira' THEN 'https://www.google.com/s2/favicons?domain_url=https://atlassian.com&sz=64'\n            WHEN 'sentry' THEN 'https://www.google.com/s2/favicons?domain_url=https://sentry.io&sz=64'\n            WHEN 'segment' THEN 'https://www.google.com/s2/favicons?domain_url=https://segment.com&sz=64'\n            WHEN 'hubspot' THEN 'https://www.google.com/s2/favicons?domain_url=https://hubspot.com&sz=64'\n            WHEN 'elevenlabs' THEN 'https://www.google.com/s2/favicons?domain_url=https://elevenlabs.io&sz=64'\n            ELSE 'https://www.google.com/s2/favicons?domain_url=https://statuspage.io&sz=64'\n        END AS \"Icon\",\n        name AS \"Provider\",\n        effective_status AS \"Status\",\n        incident_count AS \"Incidents\",\n        CASE\n            WHEN stale THEN 'stale'\n            WHEN consecutive_failures > 0 THEN 'failing'\n            ELSE 'fresh'\n        END AS \"Freshness\"\n    FROM provider_state\n    WHERE effective_status <> 'operational'\n       OR stale\n       OR consecutive_failures > 0\n), display_rows AS (\n    SELECT * FROM affected\n    UNION ALL\n    SELECT\n        NULL::text AS \"Icon\",\n        'No affected providers'::text AS \"Provider\",\n        'operational'::text AS \"Status\",\n        0::bigint AS \"Incidents\",\n        'fresh'::text AS \"Freshness\"\n    WHERE NOT EXISTS (SELECT 1 FROM affected)\n)\nSELECT *\nFROM display_rows\nORDER BY\n    CASE \"Status\"\n        WHEN 'major_outage' THEN 5\n        WHEN 'partial_outage' THEN 4\n        WHEN 'degraded' THEN 3\n        WHEN 'unknown' THEN 2\n        WHEN 'maintenance' THEN 1\n        ELSE 0\n    END DESC,\n    \"Provider\";",
           "refId": "A"
         }
       ],
-      "title": "Active incidents",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "${DS_TVX_SKYNET}"
-      },
-      "description": "Sources that are stale or have one or more consecutive polling failures.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 1
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 18,
-        "y": 0
-      },
-      "id": 3,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "value_and_name",
-        "wideLayout": true
-      },
-      "pluginVersion": "12.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "${DS_TVX_SKYNET}"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT COUNT(*)::double precision AS \"Sources requiring attention\"\nFROM external_status.provider_current\nWHERE stale OR consecutive_failures > 0;",
-          "refId": "A"
-        }
-      ],
-      "title": "Source health",
-      "type": "stat"
+      "title": "Affected providers",
+      "type": "table"
     },
     {
       "datasource": {
@@ -426,7 +448,7 @@
         "h": 7,
         "w": 24,
         "x": 0,
-        "y": 5
+        "y": 6
       },
       "id": 4,
       "options": {
@@ -556,7 +578,7 @@
         "h": 8,
         "w": 16,
         "x": 0,
-        "y": 12
+        "y": 13
       },
       "id": 5,
       "options": {
@@ -670,7 +692,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 12
+        "y": 13
       },
       "id": 6,
       "options": {
@@ -786,7 +808,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 21
       },
       "id": 7,
       "options": {
@@ -914,7 +936,7 @@
         "h": 8,
         "w": 14,
         "x": 0,
-        "y": 29
+        "y": 30
       },
       "id": 8,
       "options": {
@@ -940,7 +962,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n    source.name AS \"Provider\",\n    component.name AS \"Component\",\n    component.current_status AS \"Status\",\n    component.provider_updated_at AS \"Provider updated\"\nFROM external_status.components AS component\nJOIN external_status.sources AS source ON source.id = component.provider_id\nWHERE component.active\n  AND (\n      '${provider:raw}' = 'all'\n      OR component.provider_id = ANY(string_to_array('${provider:csv}', ','))\n  )\nORDER BY source.name, component.name;",
+          "rawSql": "SELECT\n    source.name AS \"Provider\",\n    component.name AS \"Component\",\n    component.current_status AS \"Status\",\n    component.provider_updated_at AS \"Provider updated\"\nFROM external_status.components AS component\nJOIN external_status.sources AS source ON source.id = component.provider_id\nWHERE component.active\n  AND component.provider_id ~ '^${provider:regex}$'\nORDER BY source.name, component.name;",
           "refId": "A"
         }
       ],
@@ -1024,7 +1046,7 @@
         "h": 8,
         "w": 10,
         "x": 14,
-        "y": 29
+        "y": 30
       },
       "id": 9,
       "options": {
@@ -1055,7 +1077,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n    checked_at AS \"Checked\",\n    source_id AS \"Source\",\n    succeeded AS \"Succeeded\",\n    COALESCE(error, '') AS \"Error\"\nFROM external_status.poll_attempts\nWHERE $__timeFilter(checked_at)\n  AND (\n      '${provider:raw}' = 'all'\n      OR source_id = ANY(string_to_array('${provider:csv}', ','))\n  )\nORDER BY checked_at DESC\nLIMIT 100;",
+          "rawSql": "SELECT\n    checked_at AS \"Checked\",\n    source_id AS \"Source\",\n    succeeded AS \"Succeeded\",\n    COALESCE(error, '') AS \"Error\"\nFROM external_status.poll_attempts\nWHERE $__timeFilter(checked_at)\n  AND source_id ~ '^${provider:regex}$'\nORDER BY checked_at DESC\nLIMIT 100;",
           "refId": "A"
         }
       ],
@@ -1073,7 +1095,7 @@
   "templating": {
     "list": [
       {
-        "allValue": "all",
+        "allValue": ".*",
         "current": {
           "text": "All",
           "value": "$__all"
@@ -1125,6 +1147,6 @@
   "timezone": "browser",
   "title": "TVX-SKYNET External Dependencies",
   "uid": "tvx-skynet-external-status",
-  "version": 2,
+  "version": 3,
   "weekStart": "monday"
 }
