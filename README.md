@@ -6,7 +6,8 @@ The current build is the first vertical slice:
 
 - Rust/Tokio polling engine with bounded concurrency and per-source timeouts.
 - Reusable Atlassian Statuspage collector.
-- GitHub and Claude/Claude Code sources.
+- GitHub, Claude/Claude Code, Twilio, Jira, Sentry, Segment, HubSpot and
+  ElevenLabs sources.
 - Component filtering and normalized service/incident states.
 - In-memory and PostgreSQL status stores behind one storage trait.
 - Read-only Axum API and health endpoints.
@@ -24,6 +25,9 @@ cargo run
 ```
 
 The default configuration is [`config/sources.yaml`](config/sources.yaml). Set `EXTERNAL_STATUS_CONFIG` to use a different file.
+
+Source addition and deployment instructions are documented in
+[`config/README.md`](config/README.md).
 
 The server listens on `0.0.0.0:8080` by default.
 
@@ -71,6 +75,9 @@ Portainer-ready stacks for the combinator, RSS-Bridge and changedetection.io,
 along with environment options and the shared-network setup, are documented in
 [`deploy/portainer/README.md`](deploy/portainer/README.md).
 
+The importable SOC dashboard and datasource mapping instructions are in
+[`deploy/grafana/README.md`](deploy/grafana/README.md).
+
 ## Verify
 
 ```powershell
@@ -84,5 +91,5 @@ cargo test --all-targets
 1. Exercise the embedded migrations through the Portainer deployment.
 2. Add the generic RSS/Atom/JSON Feed collector using `feed-rs`.
 3. Add conditional requests, jitter and retry handling.
-4. Provision the Grafana datasource and dashboard against read-only database views.
+4. Add alert rules after the dashboard signal quality is validated in production.
 

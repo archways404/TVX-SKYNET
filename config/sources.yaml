@@ -37,3 +37,80 @@ sources:
       - Claude Console (platform.claude.com)
       - Claude API (api.anthropic.com)
       - Claude Code
+
+  - id: twilio
+    name: Twilio
+    category: telephony
+    collector:
+      type: statuspage
+      base_url: https://status.twilio.com/
+    include_components:
+      - Network Traversal Service
+      - REST API
+
+  - id: jira
+    name: Jira
+    category: developer-tools
+    collector:
+      type: statuspage
+      base_url: https://jira-software.status.atlassian.com/
+    include_components:
+      - Viewing content
+      - Create and edit
+      - Authentication and User Management
+      - Search
+      - Notifications
+      - Administration
+      - Automation for Jira
+      - Webhooks
+
+  - id: sentry
+    name: Sentry
+    category: ops-analytics
+    collector:
+      type: statuspage
+      base_url: https://status.sentry.io/
+    include_components:
+      - Dashboard
+      - API
+      - Password-Based
+      - SAML-Based Single Sign-On
+      - US Error Ingestion
+      - EU Error Ingestion
+      - US Errors Alerting
+      - EU Errors Alerting
+      - Email
+      - Microsoft Teams
+
+  - id: segment
+    name: Segment
+    category: ops-analytics
+    collector:
+      type: statuspage
+      base_url: https://status.segment.com/
+    include_components:
+      - Data Ingestion (Tracking) API (US)
+      - Data Ingestion (Tracking) API (EU)
+      - Public API (US)
+      - Public API (EU)
+      - Web Interface (US)
+      - Web Interface (EU)
+
+  - id: hubspot
+    name: HubSpot
+    category: crm
+    collector:
+      type: statuspage
+      base_url: https://status.hubspot.com/
+    include_components:
+      - CRM
+      - HubSpot APIs
+      - Integrations
+      - Developer Tools
+
+  - id: elevenlabs
+    name: ElevenLabs
+    category: ai
+    collector:
+      type: statuspage
+      base_url: https://status.elevenlabs.io/

@@ -1,0 +1,1130 @@
+{
+  "__inputs": [
+    {
+      "description": "Read-only PostgreSQL datasource for the TVX-SKYNET database",
+      "label": "TVX-SKYNET PostgreSQL",
+      "name": "DS_TVX_SKYNET",
+      "pluginId": "grafana-postgresql-datasource",
+      "pluginName": "PostgreSQL",
+      "type": "datasource"
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "SOC view of external provider status, active incidents, component state, and collector health.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_TVX_SKYNET}"
+      },
+      "description": "Worst effective state across all enabled external providers. Stale providers are treated as unknown.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "green",
+                  "text": "Operational"
+                },
+                "1": {
+                  "color": "blue",
+                  "text": "Maintenance"
+                },
+                "2": {
+                  "color": "gray",
+                  "text": "Unknown"
+                },
+                "3": {
+                  "color": "yellow",
+                  "text": "Degraded"
+                },
+                "4": {
+                  "color": "orange",
+                  "text": "Partial outage"
+                },
+                "5": {
+                  "color": "red",
+                  "text": "Major outage"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "blue",
+                "value": 1
+              },
+              {
+                "color": "gray",
+                "value": 2
+              },
+              {
+                "color": "yellow",
+                "value": 3
+              },
+              {
+                "color": "orange",
+                "value": 4
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_TVX_SKYNET}"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n    COALESCE(MAX(CASE effective_status\n        WHEN 'operational' THEN 0\n        WHEN 'maintenance' THEN 1\n        WHEN 'unknown' THEN 2\n        WHEN 'degraded' THEN 3\n        WHEN 'partial_outage' THEN 4\n        WHEN 'major_outage' THEN 5\n        ELSE 2\n    END), 2) AS \"External dependency status\"\nFROM external_status.provider_current;",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "External dependency status",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_TVX_SKYNET}"
+      },
+      "description": "Incidents that have not been resolved or completed.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_TVX_SKYNET}"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*)::double precision AS \"Active incidents\"\nFROM external_status.active_incidents;",
+          "refId": "A"
+        }
+      ],
+      "title": "Active incidents",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_TVX_SKYNET}"
+      },
+      "description": "Sources that are stale or have one or more consecutive polling failures.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_TVX_SKYNET}"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*)::double precision AS \"Sources requiring attention\"\nFROM external_status.provider_current\nWHERE stale OR consecutive_failures > 0;",
+          "refId": "A"
+        }
+      ],
+      "title": "Source health",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_TVX_SKYNET}"
+      },
+      "description": "Current provider condition, freshness, and last collector error.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "degraded": {
+                        "color": "yellow",
+                        "text": "Degraded"
+                      },
+                      "maintenance": {
+                        "color": "blue",
+                        "text": "Maintenance"
+                      },
+                      "major_outage": {
+                        "color": "red",
+                        "text": "Major outage"
+                      },
+                      "operational": {
+                        "color": "green",
+                        "text": "Operational"
+                      },
+                      "partial_outage": {
+                        "color": "orange",
+                        "text": "Partial outage"
+                      },
+                      "unknown": {
+                        "color": "gray",
+                        "text": "Unknown"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Stale"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "false": {
+                        "color": "green",
+                        "text": "Fresh"
+                      },
+                      "true": {
+                        "color": "red",
+                        "text": "Stale"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last successful poll"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 4,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_TVX_SKYNET}"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n    name AS \"Provider\",\n    category AS \"Category\",\n    effective_status AS \"Status\",\n    stale AS \"Stale\",\n    last_success_at AS \"Last successful poll\",\n    consecutive_failures AS \"Failures\",\n    COALESCE(last_error, '') AS \"Last error\"\nFROM external_status.provider_current\nORDER BY name;",
+          "refId": "A"
+        }
+      ],
+      "title": "Current provider state",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_TVX_SKYNET}"
+      },
+      "description": "Current unresolved incidents and the latest lifecycle reported by each provider.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Impact"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "degraded": {
+                        "color": "yellow",
+                        "text": "Degraded"
+                      },
+                      "major_outage": {
+                        "color": "red",
+                        "text": "Major outage"
+                      },
+                      "partial_outage": {
+                        "color": "orange",
+                        "text": "Partial outage"
+                      },
+                      "unknown": {
+                        "color": "gray",
+                        "text": "Unknown"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Started"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Updated"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 0,
+        "y": 12
+      },
+      "id": 5,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Updated"
+          }
+        ]
+      },
+      "pluginVersion": "12.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_TVX_SKYNET}"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n    source.name AS \"Provider\",\n    incident.title AS \"Incident\",\n    incident.lifecycle AS \"Lifecycle\",\n    incident.impact AS \"Impact\",\n    incident.started_at AS \"Started\",\n    incident.provider_updated_at AS \"Updated\",\n    incident.source_url AS \"Source\"\nFROM external_status.active_incidents AS incident\nJOIN external_status.sources AS source ON source.id = incident.provider_id\nORDER BY incident.provider_updated_at DESC;",
+          "refId": "A"
+        }
+      ],
+      "title": "Active incidents",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_TVX_SKYNET}"
+      },
+      "description": "Collector success rate during the selected dashboard range.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 95
+              },
+              {
+                "color": "green",
+                "value": 99
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Success rate"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "gauge"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last check"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 12
+      },
+      "id": 6,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_TVX_SKYNET}"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n    source_id AS \"Source\",\n    COUNT(*) AS \"Checks\",\n    ROUND(100.0 * AVG(CASE WHEN succeeded THEN 1.0 ELSE 0.0 END), 1) AS \"Success rate\",\n    MAX(checked_at) AS \"Last check\"\nFROM external_status.poll_attempts\nWHERE $__timeFilter(checked_at)\nGROUP BY source_id\nORDER BY source_id;",
+          "refId": "A"
+        }
+      ],
+      "title": "Poll reliability",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_TVX_SKYNET}"
+      },
+      "description": "Provider condition over the selected time range. Numeric values are mapped back to normalized service states.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "fillOpacity": 70,
+            "lineWidth": 0,
+            "spanNulls": false
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "green",
+                  "text": "Operational"
+                },
+                "1": {
+                  "color": "blue",
+                  "text": "Maintenance"
+                },
+                "2": {
+                  "color": "gray",
+                  "text": "Unknown"
+                },
+                "3": {
+                  "color": "yellow",
+                  "text": "Degraded"
+                },
+                "4": {
+                  "color": "orange",
+                  "text": "Partial outage"
+                },
+                "5": {
+                  "color": "red",
+                  "text": "Major outage"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "blue",
+                "value": 1
+              },
+              {
+                "color": "gray",
+                "value": 2
+              },
+              {
+                "color": "yellow",
+                "value": 3
+              },
+              {
+                "color": "orange",
+                "value": 4
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "id": 7,
+      "options": {
+        "alignValue": "left",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "mergeValues": true,
+        "rowHeight": 0.8,
+        "showValue": "auto",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_TVX_SKYNET}"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n    observed_at AS \"time\",\n    provider_id AS metric,\n    CASE status\n        WHEN 'operational' THEN 0\n        WHEN 'maintenance' THEN 1\n        WHEN 'unknown' THEN 2\n        WHEN 'degraded' THEN 3\n        WHEN 'partial_outage' THEN 4\n        WHEN 'major_outage' THEN 5\n        ELSE 2\n    END::double precision AS value\nFROM external_status.provider_observations\nWHERE $__timeFilter(observed_at)\nORDER BY observed_at;",
+          "refId": "A"
+        }
+      ],
+      "title": "Provider state timeline",
+      "type": "state-timeline"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_TVX_SKYNET}"
+      },
+      "description": "Current status of the configured components for the selected providers.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "degraded": {
+                        "color": "yellow",
+                        "text": "Degraded"
+                      },
+                      "maintenance": {
+                        "color": "blue",
+                        "text": "Maintenance"
+                      },
+                      "major_outage": {
+                        "color": "red",
+                        "text": "Major outage"
+                      },
+                      "operational": {
+                        "color": "green",
+                        "text": "Operational"
+                      },
+                      "partial_outage": {
+                        "color": "orange",
+                        "text": "Partial outage"
+                      },
+                      "unknown": {
+                        "color": "gray",
+                        "text": "Unknown"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Provider updated"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 0,
+        "y": 29
+      },
+      "id": 8,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_TVX_SKYNET}"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n    source.name AS \"Provider\",\n    component.name AS \"Component\",\n    component.current_status AS \"Status\",\n    component.provider_updated_at AS \"Provider updated\"\nFROM external_status.components AS component\nJOIN external_status.sources AS source ON source.id = component.provider_id\nWHERE component.active\n  AND (\n      '${provider:raw}' = 'all'\n      OR component.provider_id = ANY(string_to_array('${provider:csv}', ','))\n  )\nORDER BY source.name, component.name;",
+          "refId": "A"
+        }
+      ],
+      "title": "Component state",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_TVX_SKYNET}"
+      },
+      "description": "Recent successful and failed collection attempts for the selected providers.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Succeeded"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "false": {
+                        "color": "red",
+                        "text": "Failed"
+                      },
+                      "true": {
+                        "color": "green",
+                        "text": "Succeeded"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Checked"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 14,
+        "y": 29
+      },
+      "id": 9,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Checked"
+          }
+        ]
+      },
+      "pluginVersion": "12.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_TVX_SKYNET}"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n    checked_at AS \"Checked\",\n    source_id AS \"Source\",\n    succeeded AS \"Succeeded\",\n    COALESCE(error, '') AS \"Error\"\nFROM external_status.poll_attempts\nWHERE $__timeFilter(checked_at)\n  AND (\n      '${provider:raw}' = 'all'\n      OR source_id = ANY(string_to_array('${provider:csv}', ','))\n  )\nORDER BY checked_at DESC\nLIMIT 100;",
+          "refId": "A"
+        }
+      ],
+      "title": "Recent poll attempts",
+      "type": "table"
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 41,
+  "tags": [
+    "soc",
+    "external-dependencies",
+    "tvx-skynet"
+  ],
+  "templating": {
+    "list": [
+      {
+        "allValue": "all",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "${DS_TVX_SKYNET}"
+        },
+        "definition": "SELECT id AS __value, name AS __text FROM external_status.sources WHERE enabled ORDER BY name",
+        "description": "Limit component and poll-detail panels to selected providers.",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Provider",
+        "multi": true,
+        "name": "provider",
+        "options": [],
+        "query": "SELECT id AS __value, name AS __text FROM external_status.sources WHERE enabled ORDER BY name",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h"
+    ],
+    "time_options": [
+      "1h",
+      "6h",
+      "12h",
+      "24h",
+      "2d",
+      "7d",
+      "30d"
+    ]
+  },
+  "timezone": "browser",
+  "title": "TVX-SKYNET External Dependencies",
+  "uid": "tvx-skynet-external-status",
+  "version": 2,
+  "weekStart": "monday"
+}
