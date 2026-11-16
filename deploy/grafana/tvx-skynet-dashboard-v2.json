@@ -819,7 +819,7 @@
         "spec": {
           "id": 19,
           "title": "Network outage map \u2014 published affected areas",
-          "description": "Markers use published area coordinates, not customer addresses. Overlapping reports are grouped; marker size shows report count and colour shows worst impact. Hover for provider, area, affected service and issues. Reports without coordinates remain in the table below. Rebuild the collector to populate map data.",
+          "description": "Markers use published area coordinates, not customer addresses. Overlapping reports are grouped; marker size shows report count and colour shows worst impact. Hover for provider, area, affected service and issues. Reports without coordinates remain in the table below.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
