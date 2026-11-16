@@ -12,8 +12,8 @@ use crate::{
     collectors::{Collector, CollectorError},
     config::{CollectorConfig, SourceConfig},
     domain::{
-        ComponentObservation, Incident, IncidentLifecycle, IncidentUpdate, ObservationBatch,
-        ServiceStatus,
+        ComponentObservation, Incident, IncidentLifecycle, IncidentUpdate, NetworkIncidentDetails,
+        NetworkLocation, ObservationBatch, ServiceStatus,
     },
 };
 
@@ -254,6 +254,7 @@ fn incident(
         resolved_at: None,
         source_url: Some(source.metadata.status_url.clone()),
         affected_component_ids: vec![],
+        network_details: NetworkIncidentDetails::default(),
         updates: vec![],
     }
 }

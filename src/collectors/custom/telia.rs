@@ -41,11 +41,7 @@ pub(super) async fn collect(
     let mut batch = empty(source);
     // These are the service filters offered by Telia's public fixed-network map.
     // Fetch each affected county so map viewport/zoom never limits incident coverage.
-    for (technology, service) in [
-        ("BROADBAND", "Broadband"),
-        ("IPTEL", "IP telephony"),
-        ("IPTV", "TV"),
-    ] {
+    for (technology, service) in [("BROADBAND", "Broadband"), ("IPTEL", "IP telephony")] {
         let mut endpoint = url.clone();
         endpoint.set_query(Some("affectedCounties"));
         endpoint
@@ -135,7 +131,18 @@ fn append_cases(
         {
             return Err(invalid("Telia case identifier missing"));
         }
-        let description = cell_text(cells[2]);
+        count += 1;
+        if id.starts_with("TV-") || service == "TV" {
+            continue;
+        }
+        let published_description = cell_text(cells[2]);
+        let description = match published_description.as_str() {
+            "Utrustningsfel" => "Equipment failure",
+            "Kabelfel" => "Cable fault",
+            "Strömavbrott" => "Power outage",
+            "Okänd" => "Cause not published",
+            other => other,
+        };
         let start = local_date(&cell_text(cells[3]))?;
         let estimate = cell_text(cells[4]);
         let affected_service = cell_text(cells[5]);
@@ -165,7 +172,24 @@ fn append_cases(
         } else {
             ServiceStatus::PartialOutage
         };
-        let component_id = format!("{county}/{service}");
+        let mut areas = features
+            .iter()
+            .filter(|feature| {
+                feature
+                    .pointer("/properties/isRelevant")
+                    .and_then(Value::as_bool)
+                    != Some(false)
+            })
+            .filter_map(|feature| feature.pointer("/properties/name").and_then(Value::as_str))
+            .collect::<Vec<_>>();
+        areas.sort_unstable();
+        areas.dedup();
+        let location = if areas.is_empty() {
+            county.to_owned()
+        } else {
+            format!("{county} · provider area {}", areas.join(", "))
+        };
+        let component_id = format!("{id}/{county}/{service}");
         if let Some(component) = batch
             .components
             .iter_mut()
@@ -175,7 +199,7 @@ fn append_cases(
         } else {
             batch.components.push(ComponentObservation {
                 external_id: component_id.clone(),
-                name: format!("{county} / {service}"),
+                name: format!("{location} / {service}"),
                 status: impact,
                 updated_at: start,
             });
@@ -188,28 +212,42 @@ fn append_cases(
             if !entry.affected_component_ids.contains(&component_id) {
                 entry.affected_component_ids.push(component_id);
             }
+            for point in map_locations(features, county)? {
+                if !entry.network_details.locations.iter().any(|p| {
+                    (p.latitude - point.latitude).abs() < 1e-7
+                        && (p.longitude - point.longitude).abs() < 1e-7
+                }) {
+                    entry.network_details.locations.push(point);
+                }
+            }
         } else {
             let mut entry = incident(
                 source,
                 &id,
-                &format!(
-                    "{id}: {description} — {affected_service} ({customers} affected customers)"
-                ),
+                &format!("{description} — {customers} affected customers"),
                 start,
                 start,
                 impact,
             );
             entry.affected_component_ids.push(component_id);
+            entry.source_url =
+                map_url(features).or_else(|| Some(source.metadata.status_url.clone()));
+            entry.network_details = NetworkIncidentDetails {
+                location: Some(location.clone()),
+                services: vec![service.into()],
+                locations: map_locations(features, county)?,
+                estimated_resolution_at: local_date(&estimate).ok(),
+                affected_customers: Some(customers),
+            };
             entry.lifecycle = if planned {
                 IncidentLifecycle::InProgress
             } else {
                 IncidentLifecycle::Investigating
             };
             entry.updates.push(IncidentUpdate { external_id: format!("{id}-details"), lifecycle: entry.lifecycle.clone(),
-                message: format!("Telia fixed-network report. Estimated repair: {estimate} (Europe/Stockholm). {customers} affected customers. Geographic association follows the provider's county map viewport."), published_at: start });
+                message: format!("Telia fixed-network report ({affected_service}). Estimated repair: {estimate} (Europe/Stockholm). {customers} affected customers. Geographic association follows the provider's county map viewport."), published_at: start });
             batch.incidents.push(entry);
         }
-        count += 1;
     }
     if count == 0 {
         return Err(invalid(
@@ -219,9 +257,127 @@ fn append_cases(
     Ok(())
 }
 
+// The public map accepts RT90 viewport bounds directly (the same coordinates as its polygons).
+fn projected_bounds(features: &[Value]) -> Option<[f64; 4]> {
+    fn points(value: &Value, bounds: &mut [f64; 4]) {
+        if let Some(items) = value.as_array() {
+            if items.len() >= 2 && items[0].is_number() && items[1].is_number() {
+                if let (Some(x), Some(y)) = (items[0].as_f64(), items[1].as_f64()) {
+                    bounds[0] = bounds[0].min(x);
+                    bounds[1] = bounds[1].min(y);
+                    bounds[2] = bounds[2].max(x);
+                    bounds[3] = bounds[3].max(y);
+                }
+            } else {
+                for item in items {
+                    points(item, bounds);
+                }
+            }
+        }
+    }
+    let mut bounds = [
+        f64::INFINITY,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::NEG_INFINITY,
+    ];
+    for feature in features {
+        if feature
+            .pointer("/properties/isRelevant")
+            .and_then(Value::as_bool)
+            == Some(false)
+        {
+            continue;
+        }
+        if let Some(coordinates) = feature.pointer("/geometry/coordinates") {
+            points(coordinates, &mut bounds);
+        }
+    }
+    if !bounds.iter().all(|n| n.is_finite()) {
+        return None;
+    }
+    Some(bounds)
+}
+
+fn map_url(features: &[Value]) -> Option<String> {
+    let bounds = projected_bounds(features)?;
+    Some(format!(
+        "https://glu2.han.telia.se/bios/glup/glup.html?xmin={}&ymin={}&xmax={}&ymax={}",
+        bounds[0], bounds[1], bounds[2], bounds[3]
+    ))
+}
+
+fn map_locations(features: &[Value], county: &str) -> Result<Vec<NetworkLocation>, CollectorError> {
+    use proj4rs::proj::Proj;
+    // Exact definition published by Telia at /bios/glup/proj4js/defs/RT90DP.js.
+    let from = Proj::from_proj_string("+proj=tmerc +lat_0=0 +lon_0=15.8062845294444 +k=1.00000561024 +x_0=1500064.274 +y_0=-667.711 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+        .map_err(|_| invalid("invalid Telia map projection"))?;
+    let to = Proj::from_proj_string("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+        .map_err(|_| invalid("invalid geographic projection"))?;
+    let mut locations = Vec::new();
+    for feature in features {
+        let Some(bounds) = projected_bounds(std::slice::from_ref(feature)) else {
+            continue;
+        };
+        let mut point = (
+            (bounds[0] + bounds[2]) / 2.0,
+            (bounds[1] + bounds[3]) / 2.0,
+            0.0,
+        );
+        proj4rs::transform::transform(&from, &to, &mut point)
+            .map_err(|_| invalid("Telia area projection failed"))?;
+        let (longitude, latitude) = (point.0.to_degrees(), point.1.to_degrees());
+        if !latitude.is_finite()
+            || !longitude.is_finite()
+            || !(-90.0..=90.0).contains(&latitude)
+            || !(-180.0..=180.0).contains(&longitude)
+        {
+            return Err(invalid("Telia map point is outside geographic bounds"));
+        }
+        if !latitude.is_finite()
+            || !longitude.is_finite()
+            || !(-90.0..=90.0).contains(&latitude)
+            || !(-180.0..=180.0).contains(&longitude)
+        {
+            return Err(invalid("invalid Telia geographic coordinates"));
+        }
+        let area = feature
+            .pointer("/properties/name")
+            .and_then(Value::as_str)
+            .unwrap_or("unnamed provider area");
+        locations.push(NetworkLocation {
+            name: format!("{county} · {area}"),
+            latitude,
+            longitude,
+            precision: "area_center".into(),
+        });
+    }
+    Ok(locations)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn telia_excludes_tv_cases_and_links_the_relevant_map_geometry() {
+        let config = crate::config::AppConfig::load("config/sources.yaml").unwrap();
+        let source = config.sources.iter().find(|s| s.id == "telia").unwrap();
+        let mut batch = empty(source);
+        let html = br#"<div id="disturbanceListTable"><table><tbody><tr><td></td><td>TV-1</td><td>TV failure</td><td></td><td></td><td>TV</td><td></td></tr></tbody></table></div>"#;
+        append_cases(source, html, "Skane", "Broadband", &mut batch).unwrap();
+        assert!(batch.incidents.is_empty());
+        assert!(batch.components.is_empty());
+        let features = serde_json::json!([{"properties":{"isRelevant":true},"geometry":{"coordinates":[[[1346000,6187000],[1347000,6188000]]]}},{"properties":{"isRelevant":false},"geometry":{"coordinates":[[0,0]]}}]);
+        let link = map_url(features.as_array().unwrap()).unwrap();
+        let points = map_locations(features.as_array().unwrap(), "Skane").unwrap();
+        assert_eq!(points.len(), 1);
+        // Independently checked with proj4js and Telia's published RT90DP definition.
+        assert!((points[0].latitude - 55.79213075586905).abs() < 1e-7);
+        assert!((points[0].longitude - 13.357897210046875).abs() < 1e-7);
+        assert_eq!(points[0].precision, "area_center");
+        assert!(link.contains("xmin=1346000&ymin=6187000&xmax=1347000&ymax=6188000"));
+    }
+
     #[test]
     fn telia_reads_cases_and_preserves_scope_without_duplicate_incidents() {
         let config = crate::config::AppConfig::load("config/sources.yaml").unwrap();

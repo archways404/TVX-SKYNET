@@ -42,7 +42,7 @@ Use **[tvx-skynet-dashboard-v2.json](tvx-skynet-dashboard-v2.json)** for the sup
 Grafana v2 installation. It preserves dashboard identity
 `tvx-skynet-external-status` and PostgreSQL datasource UID `dg46qijl86fi8d`.
 The original `tvx-skynet-dashboard.json` remains a v1 import with datasource mapping.
-Both exports include the same 13 panels, including separate network status/outage tables,
+Both exports include the same 14 panels, including separate network status/outage tables,
 dependency coverage and a reading guide. The customer-critical summary has been removed. Provider metadata drives
 logos, categories and coverage, so new rows need no hard-coded dashboard edits.
 
@@ -99,7 +99,7 @@ Claude example incidents appear with their affected services.
 
 ## Compact dashboard and automatic-source defaults
 
-The current v2 export has 13 panels, ordered as outage summary, service incidents,
+The current v2 export has 14 panels, ordered as outage summary, service incidents,
 network provider status, one row per network outage, then the complete alphabetical
 non-network provider list. Logos, affected services/areas, status, timestamps and
 source links are included. All table pagination is disabled. The complete service
@@ -124,3 +124,22 @@ history connects asynchronous samples and inserts Unknown at stale gaps.
 No extra Portainer stack is needed. Rebuild/redeploy the existing combinator, then
 apply the regenerated v2 JSON in Grafana and save. Its datasource UID remains
 `dg46qijl86fi8d` and dashboard identity remains `tvx-skynet-external-status`.
+
+The network outage panel separates **Location**, **Affected service**, **Issue**,
+**Status** and **Stage**. **Map / report** opens the published Telia polygon view,
+an approximate Telenor map point, or the provider report. TV-only Telia cases are
+also filtered from the panel during rollout; collector filtering takes effect on
+redeployment and the next successful poll.
+
+## Network outage map
+
+The built-in Geomap panel uses `network_details.locations` from active incidents.
+Marker colour is the worst reported impact; size and label indicate the number of
+reports at that point. Hover to read provider, area, affected service, issue titles
+and location precision. The Network provider selector filters the map and table.
+
+Deploy the rebuilt collector to apply migration `0003_network_locations.sql` and
+populate coordinates on the next successful poll. Existing incidents default to
+empty location metadata; existing view SELECT grants are preserved. The map query
+also tolerates the old view during rollout, showing no markers until data arrives.
+Reports with no published coordinates stay in the table; no location is guessed.

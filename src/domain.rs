@@ -92,6 +92,35 @@ pub struct IncidentUpdate {
     pub published_at: DateTime<Utc>,
 }
 
+/// A marker represents the centre of a published outage area, never a customer address.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkLocation {
+    pub name: String,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub precision: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct NetworkIncidentDetails {
+    pub location: Option<String>,
+    pub services: Vec<String>,
+    pub locations: Vec<NetworkLocation>,
+    pub estimated_resolution_at: Option<DateTime<Utc>>,
+    pub affected_customers: Option<u64>,
+}
+
+impl NetworkIncidentDetails {
+    fn is_empty(&self) -> bool {
+        self.location.is_none()
+            && self.services.is_empty()
+            && self.locations.is_empty()
+            && self.estimated_resolution_at.is_none()
+            && self.affected_customers.is_none()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Incident {
     pub provider_id: String,
@@ -104,6 +133,8 @@ pub struct Incident {
     pub resolved_at: Option<DateTime<Utc>>,
     pub source_url: Option<String>,
     pub affected_component_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "NetworkIncidentDetails::is_empty")]
+    pub network_details: NetworkIncidentDetails,
     pub updates: Vec<IncidentUpdate>,
 }
 

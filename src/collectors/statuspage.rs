@@ -112,6 +112,7 @@ impl StatuspageCollector {
                     resolved_at: incident.resolved_at,
                     source_url: incident.shortlink,
                     affected_component_ids,
+                    network_details: Default::default(),
                     updates,
                 })
             })

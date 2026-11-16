@@ -39,6 +39,7 @@ for title, ids, columns, height, collapsed in [
     ('Overview', [1, 13], 2, 100, False),
     ('Service outages', [2], 1, 320, False),
     ('Network provider status', [18], 1, 100 + network_count * 44, False),
+    ('Network outage map', [19], 1, 480, False),
     ('Network outages', [17], 1, 640, False),
     ('All service providers', [4], 1, 100 + (provider_count - network_count) * 44, False),
     ('Collection reliability', [6], 1, 260, True),

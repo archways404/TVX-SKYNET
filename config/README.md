@@ -1,7 +1,7 @@
 # Provider collection
 
 All 41 default sources are collected automatically. No manual reports, tenant ID,
-new database migration, browser container or changedetection stack is required.
+browser container or changedetection stack is required.
 Rebuild the existing combinator image after source or Rust changes.
 
 All default sources now parse actual provider status, incident or service-bulletin
@@ -38,10 +38,10 @@ currently provide component states without full incident narratives.
 
 | Provider | Automatic collection | Scope |
 | --- | --- | --- |
-| Telia SE | Public map county/case HTML | Broadband, IP telephony and TV; case IDs, viewport-associated counties, timestamps and customer counts. |
-| Telenor SE | Public map JSON using its anonymous token and AJAX headers | Fixed-network cases, counties, start and estimated repair times. |
+| Telia SE | Public map county/case HTML | Broadband and IP telephony (TV excluded); case IDs, viewport-associated counties, timestamps and customer counts. |
+| Telenor SE | Public map JSON using its anonymous token and AJAX headers | Broadband/telephony cases (TV excluded), provider area coordinates, start and estimated repair times. |
 | TDC / TDC NET | `https://tdc.dk/api/driftsinfo/getfasdata` | Public mobile, broadband/IP, access and transport incidents. Explicit resolution and planned windows determine current state. |
-| Telia DK / Norlys | Official current-bulletin HTML | DataNet, fixed, mobile, hosting and UC. Bulletins more than 24 hours beyond their repair estimate, or lacking one, remain unconfirmed/unknown. Planned-work sections are excluded. |
+| Telia DK / Norlys | Official current-bulletin HTML | DataNet, fixed, mobile and UC (hosting excluded). Bulletins more than 24 hours beyond their repair estimate, or lacking one, remain unconfirmed/unknown. Planned-work sections are excluded. |
 | Proximus | `https://status.enco.io/api/v2/summary.json` | **Enco voice/SMS/fixed-mobile-unification APIs only.** This does not establish Belgian access-network or wholesale trunk health. |
 | Line Carrier | Official Finnish RSS | Resolved `Korjattu:` titles excluded. Other public advisories preserve uncertain impact. |
 | Erate / Telavox Norway | `https://status.io/1.0/status/5c77e330cac2ed049a438709` | Erate's website redirects to Telavox Norway and links its official status page. Only Norway components/incidents are collected; no independent Erate MVNO/wholesale feed was verified. |
@@ -77,3 +77,21 @@ No matches fail collection. Without a filter all non-group components are tracke
 
 Run `cargo test --locked` for regressions. To verify the configured public sources:
 `cargo test --locked live_public_sources -- --ignored --nocapture`.
+
+## Network incident presentation
+
+TV/IPTV is disabled in Telia and Telenor collection. TDC's service allowlist already
+excludes TV/radio and energy. Norlys excludes hosting. Removed cases are resolved
+and removed components become inactive on the next successful poll after deployment.
+
+The network table separates Location, Affected service and Issue. Telia includes
+provider area codes and links to the actual polygon viewport. Telenor links to
+the centre of its published bounding box and labels it approximate; it does not
+invent an address or a fault cause. TDC uses its published location title and
+region separately from the reported reason/consequence. Migration 3 stores structured incident location data and adds it to the existing active-incidents view. It runs automatically on collector startup.
+
+The built-in Grafana Geomap displays only reports with published coordinates. Telia
+RT90DP coordinates are transformed to WGS84 using the provider's exact projection
+definition; Telia and Telenor markers show approximate area centres, not addresses.
+Overlapping reports are grouped by provider and position. Reports without coordinates
+remain in the table without guessed pins. No PostGIS or geocoding service is required.

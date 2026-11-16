@@ -66,17 +66,35 @@ fn tdc(
             }
         };
         let id = text(item, "fasId")?;
-        let component_id = format!("{service}/{}", text(item, "geography")?);
+        let component_id = format!("case:{id}");
         let updated = date(item, "updated")?;
         let mut entry = incident(
             source,
             id,
-            text(item, "title")?.trim(),
+            &format!(
+                "{} — {}",
+                text(item, "reason")?.trim(),
+                text(item, "consequence")?
+                    .split("\n\n")
+                    .next()
+                    .unwrap_or_default()
+                    .trim()
+            ),
             start,
             updated,
             impact,
         );
         entry.affected_component_ids.push(component_id.clone());
+        entry.network_details = NetworkIncidentDetails {
+            location: Some(format!(
+                "{}, {}",
+                text(item, "title")?.trim(),
+                text(item, "geography")?
+            )),
+            services: vec![service.into()],
+            estimated_resolution_at: date(item, "estimateResolved").ok(),
+            ..Default::default()
+        };
         if !planned.is_null() {
             entry.lifecycle = IncidentLifecycle::InProgress;
         }
@@ -97,7 +115,11 @@ fn tdc(
         } else {
             batch.components.push(ComponentObservation {
                 external_id: component_id,
-                name: format!("{} / {service}", text(item, "geography")?),
+                name: format!(
+                    "{}, {} / {service}",
+                    text(item, "title")?.trim(),
+                    text(item, "geography")?
+                ),
                 status: impact,
                 updated_at: updated,
             });
@@ -283,6 +305,9 @@ fn norlys(source: &SourceConfig, body: &[u8]) -> Result<ObservationBatch, Collec
     let mut service = String::new();
     let mut recognized = false;
     for node in body.children().filter_map(ElementRef::wrap) {
+        if node.value().name() != "h2" && !included(source, &[&service]) {
+            continue;
+        }
         match node.value().name() {
             "h2" => {
                 if content(node).starts_with("Planlagte") {
@@ -294,7 +319,7 @@ fn norlys(source: &SourceConfig, body: &[u8]) -> Result<ObservationBatch, Collec
                     )));
                 }
                 service = content(node);
-                recognized = false;
+                recognized = !included(source, &[&service]);
             }
             "p" if content(node) == "Der er ingen kendte driftsforstyrrelser." => {
                 batch.components.push(ComponentObservation {
@@ -331,6 +356,11 @@ fn norlys(source: &SourceConfig, body: &[u8]) -> Result<ObservationBatch, Collec
                 };
                 let mut entry = incident(source, id, &title, start, created, impact);
                 entry.affected_component_ids.push(service.clone());
+                entry.network_details = NetworkIncidentDetails {
+                    services: vec![service.clone()],
+                    estimated_resolution_at: estimate,
+                    ..Default::default()
+                };
                 if expired {
                     entry.lifecycle = IncidentLifecycle::Unknown;
                 }
@@ -381,7 +411,7 @@ mod tests {
         assert_eq!(batch.status, ServiceStatus::PartialOutage);
         assert_eq!(
             batch.incidents[0].affected_component_ids,
-            vec!["Mobil Telefoni/Sjælland"]
+            vec!["case:case-1"]
         );
         item["realResolved"] = "2026-01-03T00:00:00Z".into();
         assert!(

@@ -8,8 +8,8 @@ use super::{StatusStore, StoreError};
 use crate::{
     config::{CollectorConfig, PollDefaults, SourceConfig},
     domain::{
-        ComponentObservation, Incident, IncidentLifecycle, IncidentUpdate, ObservationBatch,
-        ProviderView, ServiceStatus, SourceHealth, StatusSummary,
+        ComponentObservation, Incident, IncidentLifecycle, IncidentUpdate, NetworkIncidentDetails,
+        ObservationBatch, ProviderView, ServiceStatus, SourceHealth, StatusSummary,
     },
 };
 
@@ -134,7 +134,8 @@ impl PostgresStore {
                 provider_updated_at,
                 resolved_at,
                 source_url,
-                affected_component_ids
+                affected_component_ids,
+                network_details
             FROM external_status.incidents
             WHERE provider_id = $1
               AND resolved_at IS NULL
@@ -320,9 +321,10 @@ impl StatusStore for PostgresStore {
                     resolved_at,
                     source_url,
                     affected_component_ids,
-                    last_seen_at
+                    last_seen_at,
+                    network_details
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                 ON CONFLICT (provider_id, external_id) DO UPDATE SET
                     title = EXCLUDED.title,
                     lifecycle = EXCLUDED.lifecycle,
@@ -332,6 +334,7 @@ impl StatusStore for PostgresStore {
                     resolved_at = EXCLUDED.resolved_at,
                     source_url = EXCLUDED.source_url,
                     affected_component_ids = EXCLUDED.affected_component_ids,
+                    network_details = EXCLUDED.network_details,
                     last_seen_at = EXCLUDED.last_seen_at
                 "#,
             )
@@ -346,6 +349,7 @@ impl StatusStore for PostgresStore {
             .bind(&incident.source_url)
             .bind(&incident.affected_component_ids)
             .bind(batch.observed_at)
+            .bind(sqlx::types::Json(&incident.network_details))
             .execute(&mut *transaction)
             .await?;
 
@@ -492,7 +496,8 @@ impl StatusStore for PostgresStore {
                 incident.provider_updated_at,
                 incident.resolved_at,
                 incident.source_url,
-                incident.affected_component_ids
+                incident.affected_component_ids,
+                incident.network_details
             FROM external_status.incidents AS incident
             JOIN external_status.sources AS source ON source.id = incident.provider_id
             WHERE source.enabled
@@ -616,6 +621,7 @@ struct IncidentRow {
     resolved_at: Option<DateTime<Utc>>,
     source_url: Option<String>,
     affected_component_ids: Vec<String>,
+    network_details: sqlx::types::Json<NetworkIncidentDetails>,
 }
 
 impl IncidentRow {
@@ -631,6 +637,7 @@ impl IncidentRow {
             resolved_at: self.resolved_at,
             source_url: self.source_url,
             affected_component_ids: self.affected_component_ids,
+            network_details: self.network_details.0,
             updates,
         })
     }

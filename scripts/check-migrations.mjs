@@ -7,6 +7,7 @@ const { PGlite } = await import(process.argv[2] ?? '@electric-sql/pglite');
 const root = new URL('../', import.meta.url);
 const initial = await readFile(new URL('migrations/0001_external_status.sql', root), 'utf8');
 const coverage = await readFile(new URL('migrations/0002_source_coverage.sql', root), 'utf8');
+const networkMigration = await readFile(new URL('migrations/0003_network_locations.sql', root), 'utf8');
 const dashboard = JSON.parse(await readFile(new URL('deploy/grafana/tvx-skynet-dashboard-v2.json', root), 'utf8'));
 for (const scenario of ['fresh', 'partial-manual', 'complete-manual']) {
   const db = new PGlite();
@@ -34,8 +35,12 @@ for (const scenario of ['fresh', 'partial-manual', 'complete-manual']) {
       GRANT USAGE ON SCHEMA external_status TO dashboard_reader;
       GRANT SELECT ON external_status.sources, external_status.provider_current,
         external_status.active_incidents, external_status.components,
-        external_status.poll_attempts, external_status.provider_observations TO dashboard_reader;
-      SET ROLE dashboard_reader;`);
+        external_status.poll_attempts, external_status.provider_observations TO dashboard_reader;`);
+    const preMigrationMapSql = dashboard.spec.elements['panel-19'].spec.data.spec.queries[0].spec.query.spec.rawSql.replaceAll('${network:sqlstring}', "'telia'");
+    assert.equal((await db.query(preMigrationMapSql)).rows.length, 0, 'map query must work before the coordinate migration is deployed');
+    await db.exec(networkMigration);
+    await db.exec(networkMigration);
+    await db.exec('SET ROLE dashboard_reader');
     for (const panel of Object.values(dashboard.spec.elements)) {
       for (const query of panel.spec.data.spec.queries) {
         const sql = query.spec.query.spec.rawSql
@@ -74,9 +79,32 @@ for (const scenario of ['fresh', 'partial-manual', 'complete-manual']) {
         INSERT INTO external_status.incidents (provider_id, external_id, title, lifecycle, impact, started_at, provider_updated_at, last_seen_at)
         VALUES ('telia','BB-1','Local fault in Skane','investigating','partial_outage',now(),now(),now()),
                ('telia','BB-2','Local fault in Stockholm','investigating','partial_outage',now(),now(),now());`);
+      await db.exec(`INSERT INTO external_status.components (provider_id, external_id, name, current_status, provider_updated_at, last_seen_at)
+        VALUES ('telia','area-1','Skane / Broadband','partial_outage',now(),now());
+        UPDATE external_status.incidents SET affected_component_ids = ARRAY['area-1'],
+          title = 'BB-1: Equipment failure', source_url = 'https://glu2.han.telia.se/bios/glup/glup.html?xmin=1&ymin=2&xmax=3&ymax=4'
+        WHERE provider_id = 'telia' AND external_id = 'BB-1';
+        INSERT INTO external_status.incidents (provider_id,external_id,title,lifecycle,impact,started_at,provider_updated_at,last_seen_at)
+        VALUES ('telia','TV-3','TV-only failure','investigating','partial_outage',now(),now(),now());`);
+      const mapDetails = { services: ['Broadband'], locations: [{name: 'Skane / EL',latitude:55.8,longitude:13.3,precision:'area_center'}] };
+      await db.query("UPDATE external_status.incidents SET network_details = $1::jsonb WHERE provider_id = 'telia' AND external_id IN ('BB-1','TV-3')", [JSON.stringify(mapDetails)]);
+      const mapSql = dashboard.spec.elements['panel-19'].spec.data.spec.queries[0].spec.query.spec.rawSql.replaceAll('${network:sqlstring}', "'telia'");
+      const map = await db.query(mapSql);
+      assert.equal(map.rows.length, 1, 'only reports with published coordinates belong on the map');
+      assert.equal(map.rows[0].Reports, 1, 'TV-only cases must not contribute to a marker');
+      assert.equal(map.rows[0].Latitude, 55.8);
+      assert.equal(map.rows[0].Longitude, 13.3);
+      assert.equal(map.rows[0].Severity, 4);
+      assert.ok(map.rows[0]['Location precision'].includes('Approximate'));
       const networkSql = dashboard.spec.elements['panel-17'].spec.data.spec.queries[0].spec.query.spec.rawSql.replaceAll('${network:sqlstring}', "'telia'");
       const network = await db.query(networkSql);
       assert.equal(network.rows.length, 2, 'each carrier case must have its own row');
+      const local = network.rows.find(row => row.Case === 'BB-1');
+      assert.equal(local.Location, 'Skane');
+      assert.equal(local['Affected service'], 'Broadband');
+      assert.equal(local.Issue, 'Equipment failure');
+      assert.equal(local['Map / report'], 'Map');
+      assert.ok(!network.rows.some(row => row.Case === 'TV-3'), 'TV-only cases must be excluded');
       assert.ok(network.rows.every(p => p.Provider === 'Telia'));
       assert.equal((await db.query(sql)).rows.length, 2, 'carrier outages must not leak into service incidents');
       await db.exec("UPDATE external_status.incidents SET lifecycle = 'resolved', resolved_at = now() WHERE provider_id = 'claude'");

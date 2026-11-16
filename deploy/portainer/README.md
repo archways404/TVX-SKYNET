@@ -148,3 +148,7 @@ collect actual public fixed-network cases. TDC and Norlys have dedicated public
 incident/bulletin adapters; Erate uses official Telavox Norway status, and Proximus
 uses its public Enco voice/SMS status with explicit scope limits.
 See [source coverage](../../config/README.md) for the exact limits.
+
+The network map needs a rebuilt combinator image, not another stack. Startup applies
+migration 3 automatically to store incident coordinates; the next successful polls
+populate the map. No PostGIS extension, map API key or geocoding container is needed.

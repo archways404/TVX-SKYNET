@@ -476,10 +476,8 @@
                     },
                     "properties": [
                       {
-                        "id": "custom.hideFrom",
-                        "value": {
-                          "viz": true
-                        }
+                        "id": "custom.hideFrom.viz",
+                        "value": true
                       }
                     ]
                   },
@@ -490,10 +488,8 @@
                     },
                     "properties": [
                       {
-                        "id": "custom.hideFrom",
-                        "value": {
-                          "viz": true
-                        }
+                        "id": "custom.hideFrom.viz",
+                        "value": true
                       }
                     ]
                   },
@@ -552,10 +548,8 @@
                     },
                     "properties": [
                       {
-                        "id": "custom.hideFrom",
-                        "value": {
-                          "viz": true
-                        }
+                        "id": "custom.hideFrom.viz",
+                        "value": true
                       }
                     ]
                   }
@@ -769,10 +763,8 @@
                     },
                     "properties": [
                       {
-                        "id": "custom.hideFrom",
-                        "value": {
-                          "viz": true
-                        }
+                        "id": "custom.hideFrom.viz",
+                        "value": true
                       }
                     ]
                   },
@@ -822,12 +814,12 @@
           }
         }
       },
-      "panel-17": {
+      "panel-19": {
         "kind": "Panel",
         "spec": {
-          "id": 17,
-          "title": "Network outages \u2014 one row per case",
-          "description": "Every reported network outage has its own row, with provider logo, case, affected area/service and incident title. Filter with Network provider. No pagination.",
+          "id": 19,
+          "title": "Network outage map \u2014 published affected areas",
+          "description": "Markers use published area coordinates, not customer addresses. Overlapping reports are grouped; marker size shows report count and colour shows worst impact. Hover for provider, area, affected service and issues. Reports without coordinates remain in the table below. Rebuild the collector to populate map data.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -849,7 +841,193 @@
                         "editorMode": "code",
                         "format": "table",
                         "rawQuery": true,
-                        "rawSql": "WITH incident_health AS (\n    SELECT provider_id, MAX(CASE impact WHEN 'major_outage' THEN 5 WHEN 'partial_outage' THEN 4\n        WHEN 'degraded' THEN 3 WHEN 'unknown' THEN 2 WHEN 'maintenance' THEN 1 ELSE 0 END) AS severity\n    FROM external_status.active_incidents\n    WHERE lifecycle <> 'scheduled' AND started_at <= now()\n    GROUP BY provider_id\n), provider_health AS (\n    SELECT p.*, CASE GREATEST(CASE p.effective_status WHEN 'major_outage' THEN 5 WHEN 'partial_outage' THEN 4\n        WHEN 'degraded' THEN 3 WHEN 'unknown' THEN 2 WHEN 'maintenance' THEN 1 ELSE 0 END, COALESCE(i.severity, 0))\n        WHEN 5 THEN 'major_outage' WHEN 4 THEN 'partial_outage' WHEN 3 THEN 'degraded'\n        WHEN 2 THEN 'unknown' WHEN 1 THEN 'maintenance' ELSE 'operational' END AS reported_status\n    FROM external_status.provider_current p LEFT JOIN incident_health i ON i.provider_id = p.id\n), issues AS (\n    SELECT CASE WHEN c.domain <> '' THEN 'https://www.google.com/s2/favicons?domain_url=https://' || c.domain || '&sz=64' END AS \"Icon\", p.name AS \"Provider\", incident.external_id AS \"Case\",\n        COALESCE(affected.names, 'Provider-wide / not specified') AS \"Affected service / area\",\n        COALESCE(incident.title, 'Provider reports ' || replace(p.reported_status, '_', ' ')) AS \"Issue\",\n        COALESCE(incident.impact, p.reported_status) AS \"Status\",\n        COALESCE(incident.lifecycle, 'provider_status') AS \"Stage\", incident.started_at AS \"Started\",\n        p.last_success_at AS \"Last checked\", COALESCE(incident.source_url, NULLIF(c.status_url, '')) AS \"Source\"\n    FROM provider_health p JOIN external_status.sources c USING (id)\n    LEFT JOIN external_status.active_incidents incident ON incident.provider_id = p.id\n        AND incident.impact IN ('degraded', 'partial_outage', 'major_outage')\n        AND incident.lifecycle <> 'scheduled' AND incident.started_at <= now()\n    LEFT JOIN LATERAL (\n        SELECT string_agg(DISTINCT component.name, ', ' ORDER BY component.name) AS names\n        FROM external_status.components component WHERE component.provider_id = p.id AND component.active\n        AND ((incident.external_id IS NOT NULL AND component.external_id = ANY(incident.affected_component_ids))\n            OR (incident.external_id IS NULL AND component.current_status IN ('degraded', 'partial_outage', 'major_outage')))\n    ) affected ON TRUE\n    WHERE p.category = 'carriers' AND p.id IN (${network:sqlstring}) AND p.reported_status IN ('degraded', 'partial_outage', 'major_outage')\n), display_rows AS (\n    SELECT * FROM issues\n    UNION ALL SELECT NULL::text, 'No reported network outages', NULL::text,\n        ''::text, 'No reported service incidents', 'operational', ''::text, NULL::timestamptz, NULL::timestamptz, NULL::text\n    WHERE NOT EXISTS (SELECT 1 FROM issues)\n)\nSELECT * FROM display_rows ORDER BY CASE \"Status\" WHEN 'major_outage' THEN 5 WHEN 'partial_outage' THEN 4 ELSE 3 END DESC,\n    \"Provider\", \"Started\" DESC, \"Issue\";"
+                        "rawSql": "WITH points AS (\n    SELECT i.provider_id, i.external_id, s.name AS provider, i.title AS issue,\n        CASE i.impact WHEN 'major_outage' THEN 5 WHEN 'partial_outage' THEN 4 ELSE 3 END AS severity,\n        point->>'name' AS location, point->>'precision' AS precision,\n        (point->>'latitude')::double precision AS latitude,\n        (point->>'longitude')::double precision AS longitude,\n        array_to_string(ARRAY(SELECT jsonb_array_elements_text(COALESCE(to_jsonb(i)->'network_details'->'services', '[]'::jsonb))), ', ') AS services\n    FROM external_status.active_incidents i JOIN external_status.sources s ON s.id = i.provider_id\n    CROSS JOIN LATERAL jsonb_array_elements(COALESCE(to_jsonb(i)->'network_details'->'locations', '[]'::jsonb)) point\n    WHERE s.enabled AND s.category = 'carriers' AND i.provider_id IN (${network:sqlstring})\n        AND i.impact IN ('degraded', 'partial_outage', 'major_outage')\n        AND i.lifecycle <> 'scheduled' AND i.started_at <= now()\n        AND NOT (i.provider_id = 'telia' AND i.external_id LIKE 'TV-%')\n), valid AS (\n    SELECT DISTINCT * FROM points WHERE latitude BETWEEN -90 AND 90 AND longitude BETWEEN -180 AND 180\n), ranked AS (\n    SELECT *, row_number() OVER (PARTITION BY provider_id, latitude, longitude ORDER BY severity DESC, external_id) AS position\n    FROM valid\n)\nSELECT latitude AS \"Latitude\", longitude AS \"Longitude\", provider AS \"Provider\",\n    string_agg(DISTINCT location, ', ') AS \"Location\", string_agg(DISTINCT services, ', ') AS \"Affected service\",\n    COUNT(DISTINCT external_id)::bigint AS \"Reports\", MAX(severity)::double precision AS \"Severity\",\n    string_agg(external_id || ': ' || issue, E'\\n' ORDER BY severity DESC, external_id) FILTER (WHERE position <= 3) AS \"Issues\",\n    CASE WHEN bool_or(precision = 'area_center') THEN 'Approximate centre of a provider-published area'\n        ELSE 'Provider-published point' END AS \"Location precision\"\nFROM ranked GROUP BY provider_id, provider, latitude, longitude ORDER BY provider, latitude, longitude;"
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "geomap",
+            "version": "13.2.4",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "mappings": [],
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "gray",
+                        "value": 0
+                      },
+                      {
+                        "color": "yellow",
+                        "value": 3
+                      },
+                      {
+                        "color": "orange",
+                        "value": 4
+                      },
+                      {
+                        "color": "red",
+                        "value": 5
+                      }
+                    ]
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Severity"
+                    },
+                    "properties": [
+                      {
+                        "id": "mappings",
+                        "value": [
+                          {
+                            "type": "value",
+                            "options": {
+                              "3": {
+                                "text": "Degraded",
+                                "color": "yellow"
+                              },
+                              "4": {
+                                "text": "Partial outage",
+                                "color": "orange"
+                              },
+                              "5": {
+                                "text": "Major outage",
+                                "color": "red"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "basemap": {
+                  "name": "Basemap",
+                  "type": "default",
+                  "config": {}
+                },
+                "view": {
+                  "id": "fit",
+                  "allLayers": true,
+                  "lat": 58,
+                  "lon": 15,
+                  "zoom": 4
+                },
+                "controls": {
+                  "showZoom": true,
+                  "mouseWheelZoom": false,
+                  "showAttribution": true,
+                  "showScale": true,
+                  "showMeasure": false,
+                  "showDebug": false
+                },
+                "tooltip": {
+                  "mode": "details"
+                },
+                "layers": [
+                  {
+                    "name": "Active network reports",
+                    "type": "markers",
+                    "location": {
+                      "mode": "coords",
+                      "latitude": "Latitude",
+                      "longitude": "Longitude"
+                    },
+                    "filterData": {
+                      "id": "byRefId",
+                      "options": "A"
+                    },
+                    "tooltip": true,
+                    "config": {
+                      "showLegend": true,
+                      "style": {
+                        "color": {
+                          "field": "Severity",
+                          "fixed": "orange"
+                        },
+                        "opacity": 0.85,
+                        "size": {
+                          "field": "Reports",
+                          "fixed": 9,
+                          "min": 7,
+                          "max": 24
+                        },
+                        "rotation": {
+                          "fixed": 0,
+                          "min": -360,
+                          "max": 360,
+                          "mode": "mod"
+                        },
+                        "symbol": {
+                          "fixed": "img/icons/marker/circle.svg",
+                          "mode": "fixed"
+                        },
+                        "text": {
+                          "field": "Reports",
+                          "fixed": "",
+                          "mode": "field"
+                        },
+                        "textConfig": {
+                          "fontSize": 12,
+                          "offsetX": 0,
+                          "offsetY": 0,
+                          "textAlign": "center",
+                          "textBaseline": "middle"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-17": {
+        "kind": "Panel",
+        "spec": {
+          "id": 17,
+          "title": "Network outages \u2014 issue, location and service",
+          "description": "One row per network outage, with separate location, affected service, fault description and map/report link. County viewport labels and bounding-box centres are approximate; exact addresses and causes are shown only when the provider publishes them. TV-only Telia cases are excluded.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "refId": "A",
+                    "hidden": false,
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "dg46qijl86fi8d"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "WITH incident_health AS (\n    SELECT provider_id, MAX(CASE impact WHEN 'major_outage' THEN 5 WHEN 'partial_outage' THEN 4\n        WHEN 'degraded' THEN 3 WHEN 'unknown' THEN 2 WHEN 'maintenance' THEN 1 ELSE 0 END) AS severity\n    FROM external_status.active_incidents\n    WHERE lifecycle <> 'scheduled' AND started_at <= now()\n    GROUP BY provider_id\n), provider_health AS (\n    SELECT p.*, CASE GREATEST(CASE p.effective_status WHEN 'major_outage' THEN 5 WHEN 'partial_outage' THEN 4\n        WHEN 'degraded' THEN 3 WHEN 'unknown' THEN 2 WHEN 'maintenance' THEN 1 ELSE 0 END, COALESCE(i.severity, 0))\n        WHEN 5 THEN 'major_outage' WHEN 4 THEN 'partial_outage' WHEN 3 THEN 'degraded'\n        WHEN 2 THEN 'unknown' WHEN 1 THEN 'maintenance' ELSE 'operational' END AS reported_status\n    FROM external_status.provider_current p LEFT JOIN incident_health i ON i.provider_id = p.id\n), issues AS (\n    SELECT CASE WHEN c.domain <> '' THEN 'https://www.google.com/s2/favicons?domain_url=https://' || c.domain || '&sz=64' END AS \"Icon\",\n        p.name AS \"Provider\", incident.external_id AS \"Case\",\n        COALESCE(affected.locations, 'Not published by provider') AS \"Location\",\n        COALESCE(affected.services, 'Network / telephony') AS \"Affected service\",\n        COALESCE(regexp_replace(incident.title, '^((BB|BT|TV)-[0-9]+|[0-9]+): *', ''),\n            'Provider reports ' || replace(p.reported_status, '_', ' ')) AS \"Issue\",\n        COALESCE(incident.impact, p.reported_status) AS \"Status\",\n        COALESCE(incident.lifecycle, 'provider_status') AS \"Stage\", incident.started_at AS \"Started\",\n        p.last_success_at AS \"Last checked\",\n        CASE WHEN incident.source_url LIKE 'https://www.openstreetmap.org/%'\n               OR incident.source_url LIKE 'https://glu2.han.telia.se/bios/glup/glup.html?%' THEN 'Map'\n             ELSE 'Provider report' END AS \"Map / report\",\n        COALESCE(incident.source_url, NULLIF(c.status_url, '')) AS \"Source\", c.status_url AS \"Provider source\"\n    FROM provider_health p JOIN external_status.sources c USING (id)\n    LEFT JOIN external_status.active_incidents incident ON incident.provider_id = p.id\n        AND incident.impact IN ('degraded', 'partial_outage', 'major_outage')\n        AND incident.lifecycle <> 'scheduled' AND incident.started_at <= now()\n        AND NOT (p.id = 'telia' AND incident.external_id LIKE 'TV-%')\n    LEFT JOIN LATERAL (\n        SELECT string_agg(DISTINCT regexp_replace(component.name, ' / [^/]+$', ''), ', ' ORDER BY regexp_replace(component.name, ' / [^/]+$', ''))\n                FILTER (WHERE component.name LIKE '% / %') AS locations,\n            string_agg(DISTINCT regexp_replace(component.name, '^.* / ', ''), ', ' ORDER BY regexp_replace(component.name, '^.* / ', '')) AS services\n        FROM external_status.components component WHERE component.provider_id = p.id AND component.active\n            AND component.name !~* ' / (TV|IPTV)$'\n            AND ((incident.external_id IS NOT NULL AND component.external_id = ANY(incident.affected_component_ids))\n                OR (incident.external_id IS NULL AND component.current_status IN ('degraded', 'partial_outage', 'major_outage')))\n    ) affected ON TRUE\n    WHERE p.category = 'carriers' AND p.id IN (${network:sqlstring})\n        AND p.reported_status IN ('degraded', 'partial_outage', 'major_outage')\n        AND NOT (p.id = 'telia' AND incident.external_id IS NULL AND EXISTS (\n            SELECT 1 FROM external_status.active_incidents i WHERE i.provider_id = p.id AND i.external_id LIKE 'TV-%'))\n), display_rows AS (\n    SELECT * FROM issues UNION ALL\n    SELECT NULL::text, 'No reported network outages', NULL::text, ''::text, ''::text, 'No reported service incidents',\n        'operational', ''::text, NULL::timestamptz, NULL::timestamptz, ''::text, NULL::text, NULL::text\n    WHERE NOT EXISTS (SELECT 1 FROM issues)\n)\nSELECT * FROM display_rows ORDER BY CASE \"Status\" WHEN 'major_outage' THEN 5 WHEN 'partial_outage' THEN 4 ELSE 3 END DESC,\n    \"Provider\", \"Location\", \"Started\" DESC, \"Case\";"
                       }
                     }
                   }
@@ -956,148 +1134,34 @@
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "Provider"
-                    },
-                    "properties": [
-                      {
-                        "id": "custom.width",
-                        "value": 190
-                      },
-                      {
-                        "id": "links",
-                        "value": [
-                          {
-                            "title": "Open provider status",
-                            "url": "${__data.fields.Source}",
-                            "targetBlank": true
-                          }
-                        ]
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Issue"
-                    },
-                    "properties": [
-                      {
-                        "id": "custom.wrapText",
-                        "value": true
-                      },
-                      {
-                        "id": "links",
-                        "value": [
-                          {
-                            "title": "Open provider status",
-                            "url": "${__data.fields.Source}",
-                            "targetBlank": true
-                          }
-                        ]
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
                       "options": "Status"
                     },
                     "properties": [
                       {
                         "id": "custom.width",
-                        "value": 130
+                        "value": 125
                       }
                     ]
                   },
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "Last checked"
+                      "options": "Provider"
                     },
                     "properties": [
-                      {
-                        "id": "unit",
-                        "value": "dateTimeAsLocal"
-                      },
-                      {
-                        "id": "custom.width",
-                        "value": 180
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Stage"
-                    },
-                    "properties": [
-                      {
-                        "id": "custom.hideFrom",
-                        "value": {
-                          "viz": true
-                        }
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Source"
-                    },
-                    "properties": [
-                      {
-                        "id": "custom.hideFrom",
-                        "value": {
-                          "viz": true
-                        }
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Affected service / area"
-                    },
-                    "properties": [
-                      {
-                        "id": "custom.width",
-                        "value": 260
-                      },
-                      {
-                        "id": "custom.wrapText",
-                        "value": true
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Issue"
-                    },
-                    "properties": [
-                      {
-                        "id": "custom.width",
-                        "value": 560
-                      },
-                      {
-                        "id": "custom.wrapText",
-                        "value": true
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Started"
-                    },
-                    "properties": [
-                      {
-                        "id": "unit",
-                        "value": "dateTimeAsLocal"
-                      },
                       {
                         "id": "custom.width",
                         "value": 170
+                      },
+                      {
+                        "id": "links",
+                        "value": [
+                          {
+                            "title": "Provider status page",
+                            "url": "${__data.fields[\"Provider source\"]}",
+                            "targetBlank": true
+                          }
+                        ]
                       }
                     ]
                   },
@@ -1109,7 +1173,133 @@
                     "properties": [
                       {
                         "id": "custom.width",
+                        "value": 115
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Location"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 230
+                      },
+                      {
+                        "id": "custom.wrapText",
+                        "value": true
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Affected service"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
                         "value": 130
+                      },
+                      {
+                        "id": "custom.wrapText",
+                        "value": true
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Issue"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.wrapText",
+                        "value": true
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Stage"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 120
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Started"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom.viz",
+                        "value": true
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Last checked"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom.viz",
+                        "value": true
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Map / report"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 100
+                      },
+                      {
+                        "id": "links",
+                        "value": [
+                          {
+                            "title": "Open affected area or provider report",
+                            "url": "${__data.fields.Source}",
+                            "targetBlank": true
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Source"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom.viz",
+                        "value": true
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Provider source"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom.viz",
+                        "value": true
                       }
                     ]
                   }
@@ -1351,10 +1541,8 @@
                     },
                     "properties": [
                       {
-                        "id": "custom.hideFrom",
-                        "value": {
-                          "viz": true
-                        }
+                        "id": "custom.hideFrom.viz",
+                        "value": true
                       }
                     ]
                   },
@@ -1365,10 +1553,8 @@
                     },
                     "properties": [
                       {
-                        "id": "custom.hideFrom",
-                        "value": {
-                          "viz": true
-                        }
+                        "id": "custom.hideFrom.viz",
+                        "value": true
                       }
                     ]
                   },
@@ -1421,10 +1607,8 @@
                     },
                     "properties": [
                       {
-                        "id": "custom.hideFrom",
-                        "value": {
-                          "viz": true
-                        }
+                        "id": "custom.hideFrom.viz",
+                        "value": true
                       }
                     ]
                   }
@@ -1787,10 +1971,8 @@
                     },
                     "properties": [
                       {
-                        "id": "custom.hideFrom",
-                        "value": {
-                          "viz": true
-                        }
+                        "id": "custom.hideFrom.viz",
+                        "value": true
                       }
                     ]
                   },
@@ -1879,10 +2061,8 @@
                     },
                     "properties": [
                       {
-                        "id": "custom.hideFrom",
-                        "value": {
-                          "viz": true
-                        }
+                        "id": "custom.hideFrom.viz",
+                        "value": true
                       }
                     ]
                   },
@@ -2489,7 +2669,7 @@
               },
               "options": {
                 "mode": "markdown",
-                "content": "Start with **Any outages?** and **Service outages**. **Network provider status** and **Network outages** are separate: every carrier case has its own row with the affected area or service. Use **Network provider** to focus on Telia or another carrier. **All service providers** lists every non-network provider without pagination. Unknown or stale means health could not be established. Green means no issue reported within the stated public coverage. Maintenance and unconfirmed advisories remain in Incident details. The Provider filter applies to component and poll details."
+                "content": "Start with **Any outages?** and **Service outages**. **Network provider status** and **Network outages** are separate: every carrier case has its own row with the affected area or service. Use **Network provider** to focus on Telia or another carrier. **All service providers** lists every non-network provider without pagination. Unknown or stale means health could not be established. Green means no issue reported within the stated public coverage. Maintenance and unconfirmed advisories remain in Incident details. The Provider filter applies to component and poll details. The network map groups cases at published coordinates. Area-centre markers are approximate; text-only reports are listed below without guessed pins."
               }
             }
           }
@@ -2585,6 +2765,34 @@
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-18"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "Network outage map",
+              "collapse": false,
+              "layout": {
+                "kind": "AutoGridLayout",
+                "spec": {
+                  "maxColumnCount": 1,
+                  "columnWidthMode": "standard",
+                  "rowHeightMode": "custom",
+                  "rowHeight": 480,
+                  "fillScreen": false,
+                  "items": [
+                    {
+                      "kind": "AutoGridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-19"
                         }
                       }
                     }

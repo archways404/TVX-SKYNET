@@ -487,7 +487,7 @@ sources:
     request_timeout: 60s
     metadata:
       dependency: "Carrier connectivity and customer calls"
-      coverage: "Official public fixed-network county and case tables for broadband, IP telephony and TV. Regional cases do not establish a nationwide or mobile outage; county associations follow map viewports."
+      coverage: "Official public fixed-network county and case tables for broadband and IP telephony. TV is excluded. Regional cases do not establish a nationwide or mobile outage; county associations follow map viewports."
       status_url: "https://www.telia.se/support/driftinformation-fast"
       domain: "telia.se"
     collector:
@@ -500,7 +500,7 @@ sources:
     request_timeout: 60s
     metadata:
       dependency: "Carrier connectivity and customer calls"
-      coverage: "Official public fixed-network outage portal. Local broadband/TV/telephony cases; no nationwide or mobile health guarantee. County associations follow map viewports."
+      coverage: "Official public fixed-network outage portal. Local broadband/telephony cases; TV is excluded; no nationwide or mobile health guarantee. County associations follow map viewports."
       status_url: "https://mboss.telenor.se/outageportalfixed/"
       domain: "telenor.se"
     collector:
@@ -531,12 +531,17 @@ sources:
     category: carriers
     metadata:
       dependency: "Danish carrier connectivity, customer calls and mobile access"
-      coverage: "Official Norlys current service bulletins and explicit no-known-issues statements. Notices more than 24 hours past their repair estimate remain unconfirmed/unknown rather than fresh outage evidence."
+      coverage: "Official Norlys DataNet, fixed, mobile and UC bulletins and explicit no-known-issues statements; hosting is excluded. Notices more than 24 hours past their repair estimate remain unconfirmed/unknown rather than fresh outage evidence."
       status_url: "https://shop.norlys.dk/kundeservice/mobil/dakning-og-drift/driftsinformation/"
       domain: "norlys.dk"
     collector:
       type: norlys
       url: https://shop.norlys.dk/kundeservice/mobil/dakning-og-drift/driftsinformation/
+    include_components:
+      - DataNet
+      - Fastnet
+      - Mobile
+      - UC
 
   - id: proximus
     name: "Proximus (public voice/SMS APIs)"
