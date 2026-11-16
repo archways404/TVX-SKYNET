@@ -6,7 +6,7 @@ use sqlx::{FromRow, PgPool, postgres::PgPoolOptions};
 
 use super::{StatusStore, StoreError};
 use crate::{
-    config::{PollDefaults, SourceConfig},
+    config::{CollectorConfig, PollDefaults, SourceConfig},
     domain::{
         ComponentObservation, Incident, IncidentLifecycle, IncidentUpdate, ObservationBatch,
         ProviderView, ServiceStatus, SourceHealth, StatusSummary,
@@ -55,14 +55,19 @@ impl PostgresStore {
                     name,
                     category,
                     enabled,
-                    stale_after_seconds
+                    stale_after_seconds, dependency, coverage, status_url, domain, collection_mode
                 )
-                VALUES ($1, $2, $3, TRUE, $4)
+                VALUES ($1, $2, $3, TRUE, $4, $5, $6, $7, $8, $9)
                 ON CONFLICT (id) DO UPDATE SET
                     name = EXCLUDED.name,
                     category = EXCLUDED.category,
                     enabled = TRUE,
                     stale_after_seconds = EXCLUDED.stale_after_seconds,
+                    dependency = EXCLUDED.dependency,
+                    coverage = EXCLUDED.coverage,
+                    status_url = EXCLUDED.status_url,
+                    domain = EXCLUDED.domain,
+                    collection_mode = EXCLUDED.collection_mode,
                     updated_at = now()
                 "#,
             )
@@ -70,6 +75,15 @@ impl PostgresStore {
             .bind(&source.name)
             .bind(&source.category)
             .bind(stale_after_seconds)
+            .bind(&source.metadata.dependency)
+            .bind(&source.metadata.coverage)
+            .bind(&source.metadata.status_url)
+            .bind(&source.metadata.domain)
+            .bind(match source.collector {
+                CollectorConfig::Manual { .. } => "manual",
+                CollectorConfig::MicrosoftGraph => "authenticated",
+                _ => "automatic",
+            })
             .execute(&mut *transaction)
             .await?;
         }

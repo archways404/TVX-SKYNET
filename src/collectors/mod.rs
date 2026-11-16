@@ -1,3 +1,4 @@
+mod custom;
 mod statuspage;
 
 use std::sync::Arc;
@@ -22,6 +23,10 @@ pub enum CollectorError {
     ResponseTooLarge { actual: usize, limit: usize },
     #[error("could not parse provider response: {0}")]
     Parse(#[from] serde_json::Error),
+    #[error("invalid provider payload: {0}")]
+    Invalid(String),
+    #[error("manual status file: {0}")]
+    Io(#[from] std::io::Error),
     #[error("collector is not implemented yet: {0}")]
     Unsupported(String),
 }
@@ -34,6 +39,7 @@ pub trait Collector: Send + Sync {
 #[derive(Clone)]
 pub struct CollectorRegistry {
     statuspage: Arc<StatuspageCollector>,
+    custom: Arc<custom::CustomCollector>,
 }
 
 impl CollectorRegistry {
@@ -48,6 +54,10 @@ impl CollectorRegistry {
             .build()?;
 
         Ok(Self {
+            custom: Arc::new(custom::CustomCollector::new(
+                client.clone(),
+                defaults.max_response_bytes,
+            )),
             statuspage: Arc::new(StatuspageCollector::new(
                 client,
                 defaults.max_response_bytes,
@@ -58,10 +68,7 @@ impl CollectorRegistry {
     pub async fn collect(&self, source: &SourceConfig) -> Result<ObservationBatch, CollectorError> {
         match &source.collector {
             CollectorConfig::Statuspage { .. } => self.statuspage.collect(source).await,
-            CollectorConfig::Feed { url } => Err(CollectorError::Unsupported(format!(
-                "feed source {} ({url})",
-                source.id
-            ))),
+            _ => self.custom.collect(source).await,
         }
     }
 }

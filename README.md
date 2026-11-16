@@ -2,12 +2,12 @@
 
 TVX-SKYNET is an external-service status combinator. It polls structured provider status sources, normalizes their component and incident states, and exposes one read-only API for Grafana and internal applications.
 
-The current build is the first vertical slice:
+The current build includes:
 
 - Rust/Tokio polling engine with bounded concurrency and per-source timeouts.
-- Reusable Atlassian Statuspage collector.
-- GitHub, Claude/Claude Code, Twilio, Jira, Sentry, Segment, HubSpot and
-  ElevenLabs sources.
+- Statuspage, Google, Apple, Meta, Salesforce, Slack and RSS advisory collectors.
+- 41 configured providers: 27 public feeds, Microsoft tenant health with app
+  credentials, and 13 manual sources including carriers.
 - Component filtering and normalized service/incident states.
 - In-memory and PostgreSQL status stores behind one storage trait.
 - Read-only Axum API and health endpoints.
@@ -16,7 +16,8 @@ The current build is the first vertical slice:
 
 The PostgreSQL store includes durable incident/update history, provider and
 component observations, poll-attempt history, and read-only Grafana views. The
-combinator container and Grafana provisioning are the next deployment slice.
+combinator container is deployed through Portainer; importable Grafana v1 and v2
+dashboards live in [`deploy/grafana`](deploy/grafana/README.md).
 
 ## Run
 
@@ -89,7 +90,7 @@ cargo test --all-targets
 ## Next vertical slices
 
 1. Exercise the embedded migrations through the Portainer deployment.
-2. Add the generic RSS/Atom/JSON Feed collector using `feed-rs`.
+2. Extend the RSS advisory collector with provider-specific lifecycle semantics and Atom support.
 3. Add conditional requests, jitter and retry handling.
 4. Add alert rules after the dashboard signal quality is validated in production.
 
