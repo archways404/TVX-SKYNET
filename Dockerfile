@@ -27,6 +27,7 @@ WORKDIR /app
 
 COPY --from=builder /build/target/release/external-status-combinator /usr/local/bin/external-status-combinator
 COPY config ./config
+COPY config/manual-status.json /app/manual/status.json
 
 ENV EXTERNAL_STATUS_CONFIG=/app/config/sources.yaml \
     RUST_LOG=external_status_combinator=info,tower_http=info \

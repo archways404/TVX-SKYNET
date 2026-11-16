@@ -60,7 +60,21 @@ pub struct SourceConfig {
     pub stale_after: Option<Duration>,
     #[serde(default)]
     pub include_components: Vec<String>,
+    #[serde(default)]
+    pub metadata: SourceMetadata,
     pub collector: CollectorConfig,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct SourceMetadata {
+    #[serde(default)]
+    pub dependency: String,
+    #[serde(default)]
+    pub coverage: String,
+    #[serde(default)]
+    pub status_url: String,
+    #[serde(default)]
+    pub domain: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -68,6 +82,13 @@ pub struct SourceConfig {
 pub enum CollectorConfig {
     Statuspage { base_url: Url },
     Feed { url: Url },
+    Google { url: Url },
+    Apple { url: Url },
+    Salesforce { url: Url },
+    Slack { url: Url },
+    Meta { url: Url },
+    MicrosoftGraph,
+    Manual { path: std::path::PathBuf },
 }
 
 impl AppConfig {

@@ -13,6 +13,11 @@ services:
       EXTERNAL_STATUS_CONFIG: /app/config/sources.yaml
       RUST_LOG: "${RUST_LOG:-external_status_combinator=info,tower_http=info}"
       STORAGE_BACKEND: postgres
+      MICROSOFT_TENANT_ID: "${MICROSOFT_TENANT_ID:-}"
+      MICROSOFT_CLIENT_ID: "${MICROSOFT_CLIENT_ID:-}"
+      MICROSOFT_CLIENT_SECRET: "${MICROSOFT_CLIENT_SECRET:-}"
+    volumes:
+      - manual_status:/app/manual:ro
     ports:
       - "${TVX_SKYNET_BIND_ADDRESS:-0.0.0.0}:${TVX_SKYNET_PORT:-8080}:8080"
     networks:
@@ -47,3 +52,6 @@ networks:
   tvx_skynet:
     external: true
     name: tvx-skynet
+
+volumes:
+  manual_status:
