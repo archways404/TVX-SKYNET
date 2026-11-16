@@ -407,12 +407,30 @@ mod tests {
     fn status_io_filters_regions_and_rejects_missing_components() {
         let mut config = source("status_io");
         config.include_components = vec!["Norway".into()];
-        let value = serde_json::json!({"result":{"status":[{"id":"no","name":"Norway","containers":[{"id":"calls","name":"Mobile Telephony","status_code":100,"updated":"2026-01-01T00:00:00Z"}]},{"id":"se","name":"Sweden","containers":[{"id":"se-calls","name":"Calls","status_code":500,"updated":"2026-01-01T00:00:00Z"}]}],"incidents":[],"maintenance":{"active":[]}}});
+        let mut value = serde_json::json!({"result":{"status":[{"id":"no","name":"Norway","containers":[{"id":"calls","name":"Mobile Telephony","status_code":100,"updated":"2026-01-01T00:00:00Z"}]},{"id":"se","name":"Sweden","containers":[{"id":"se-calls","name":"Calls","status_code":500,"updated":"2026-01-01T00:00:00Z"}]}],"incidents":[],"maintenance":{"active":[]}}});
         assert_eq!(
             parse(&config, &serde_json::to_vec(&value).unwrap())
                 .unwrap()
                 .status,
             ServiceStatus::Operational
+        );
+        let mut issue = serde_json::json!({"_id":"no-incident","name":"Norway calls failing","datetime_open":"2026-01-01T00:00:00Z","messages":[{"datetime":"2026-01-01T01:00:00Z","status":400,"state":300,"details":"Recovery being monitored"}],"components_affected":[{"_id":"no"}],"containers_affected":[{"_id":"calls"}]});
+        let mut foreign = issue.clone();
+        foreign["_id"] = "se-incident".into();
+        foreign["components_affected"] = serde_json::json!([{"_id":"se"}]);
+        value["result"]["incidents"] = serde_json::json!([issue.clone(), foreign]);
+        let batch = parse(&config, &serde_json::to_vec(&value).unwrap()).unwrap();
+        assert_eq!(batch.incidents.len(), 1);
+        assert_eq!(batch.status, ServiceStatus::PartialOutage);
+        assert_eq!(batch.incidents[0].lifecycle, IncidentLifecycle::Monitoring);
+        assert_eq!(batch.incidents[0].affected_component_ids, vec!["calls"]);
+        issue["messages"][0]["state"] = 400.into();
+        value["result"]["incidents"] = serde_json::json!([issue]);
+        assert!(
+            parse(&config, &serde_json::to_vec(&value).unwrap())
+                .unwrap()
+                .incidents
+                .is_empty()
         );
         assert!(parse(&config, br#"{"result":{"status":[]}}"#).is_err());
     }

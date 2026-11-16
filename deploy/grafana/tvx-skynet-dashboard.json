@@ -2344,30 +2344,6 @@
         "skipUrlSync": false,
         "sort": 1,
         "type": "query"
-      },
-      {
-        "current": {
-          "text": "All",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "grafana-postgresql-datasource",
-          "uid": "${DS_TVX_SKYNET}"
-        },
-        "definition": "SELECT id AS __value, name AS __text FROM external_status.sources WHERE enabled AND category = 'carriers' ORDER BY name",
-        "description": "Filter the carrier status and outage tables; service provider tables always include all non-network providers.",
-        "hide": 0,
-        "includeAll": true,
-        "label": "Network provider",
-        "multi": true,
-        "name": "network",
-        "options": [],
-        "query": "SELECT id AS __value, name AS __text FROM external_status.sources WHERE enabled AND category = 'carriers' ORDER BY name",
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "sort": 1,
-        "type": "query"
       }
     ]
   },

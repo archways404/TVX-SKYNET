@@ -2938,42 +2938,6 @@
           "sort": "alphabeticalAsc",
           "allowCustomValue": true
         }
-      },
-      {
-        "kind": "QueryVariable",
-        "spec": {
-          "current": {
-            "text": "All",
-            "value": "$__all"
-          },
-          "definition": "SELECT id AS __value, name AS __text FROM external_status.sources WHERE enabled AND category = 'carriers' ORDER BY name",
-          "description": "Filter the carrier status and outage tables; service provider tables always include all non-network providers.",
-          "hide": "dontHide",
-          "includeAll": true,
-          "label": "Network provider",
-          "multi": true,
-          "name": "network",
-          "options": [],
-          "query": {
-            "kind": "DataQuery",
-            "group": "grafana-postgresql-datasource",
-            "version": "v0",
-            "datasource": {
-              "name": "dg46qijl86fi8d"
-            },
-            "spec": {
-              "rawSql": "SELECT id AS __value, name AS __text FROM external_status.sources WHERE enabled AND category = 'carriers' ORDER BY name",
-              "format": "table",
-              "rawQuery": true,
-              "editorMode": "code"
-            }
-          },
-          "refresh": "onDashboardLoad",
-          "regex": "",
-          "skipUrlSync": false,
-          "sort": "alphabeticalAsc",
-          "allowCustomValue": true
-        }
       }
     ]
   }

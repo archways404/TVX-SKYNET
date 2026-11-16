@@ -41,3 +41,6 @@ assert 'panel-11' not in spec['elements'], 'customer-critical summary was explic
 
 assert spec["elements"]["panel-4"]["spec"]["vizConfig"]["spec"]["options"]["enablePagination"] is False
 assert "LIMIT" not in spec["elements"]["panel-4"]["spec"]["data"]["spec"]["queries"][0]["spec"]["query"]["spec"]["rawSql"].upper()
+
+variable_names = [v["spec"]["name"] for v in spec["variables"]]
+assert len(variable_names) == len(set(variable_names)), "variable names must be unique"
