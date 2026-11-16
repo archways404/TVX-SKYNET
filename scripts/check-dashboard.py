@@ -10,17 +10,21 @@ ids = [p['spec']['id'] for p in spec['elements'].values()]
 assert len(ids) == len(set(ids)) == len(v1['panels']) == 11
 references = []
 for row in spec['layout']['spec']['rows']:
-    items = row['spec']['layout']['spec']['items']
-    for item in items:
-        position = item['spec']
-        references.append(position['element']['name'])
-        assert 0 <= position['x'] < 24 and position['x'] + position['width'] <= 24
-        assert position['y'] >= 0 and position['height'] > 0
+    layout = row['spec']['layout']
+    assert layout['kind'] == 'AutoGridLayout', 'panels must resize with available width'
+    assert layout['spec']['maxColumnCount'] in (1, 2)
+    for item in layout['spec']['items']:
+        assert item['kind'] == 'AutoGridLayoutItem'
+        references.append(item['spec']['element']['name'])
 assert sorted(references) == sorted(spec['elements'])
 for panel in spec['elements'].values():
     p = panel['spec']
     assert p['description']
     assert {'links', 'vizConfig', 'data'} <= p.keys()
+    # Grafana's Edit as code validator requires numbers here, even though
+    # classic exports serialize the base threshold as null (-Infinity).
+    for index, step in enumerate(p['vizConfig']['spec']['fieldConfig']['defaults'].get('thresholds', {}).get('steps', [])):
+        assert type(step['value']) in (int, float), f"panel-{p['id']} threshold {index}: expected number, got {step['value']!r}"
     for query in p['data']['spec']['queries']:
         data = query['spec']['query']
         assert data['kind'] == 'DataQuery'

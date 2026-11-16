@@ -64,3 +64,35 @@ continue to include all enabled providers. Timeline rows show successful observa
 check current freshness alongside history. Salesforce currently covers global
 production instances: narrow its configured instance keys when your customer scope
 is known. No live Grafana import or PostgreSQL migration was performed locally.
+
+
+## Responsive layout and migration recovery
+
+The v2 export uses responsive AutoGrid rows. **Issues now** lists each provider,
+affected service and exact incident title, ordered by severity. Missing manual
+reports and collection failures remain visible in **All providers**. Detailed
+incident, history and coverage sections start collapsed.
+
+The generator converts classic null base thresholds to numeric zero because this
+installation's Grafana code editor rejects null threshold values. Validate with:
+
+```sh
+python3 scripts/build-dashboard-v2.py
+python3 scripts/check-dashboard.py
+```
+
+Migration 2 can be run after its SQL has been applied manually: existing columns
+are retained and the coverage view is created or replaced. Rebuild/redeploy the
+collector image to load that repaired embedded migration; restarting the old
+container retains the original SQL. Do not delete existing provider data.
+
+For isolated PostgreSQL regression checks (no production connection):
+
+```sh
+npm install --prefix /tmp/skynet-migration-test --ignore-scripts @electric-sql/pglite@0.3.14
+node scripts/check-migrations.mjs /tmp/skynet-migration-test/node_modules/@electric-sql/pglite/dist/index.js
+```
+
+The regression check covers fresh, partially manual and fully manual schema
+setups, preserves existing values, executes dashboard SQL, and verifies both
+Claude example incidents appear with their affected services.

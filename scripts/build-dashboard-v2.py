@@ -18,17 +18,34 @@ for panel in source['panels']:
         query = {k: v for k, v in target.items() if k not in ['datasource', 'refId', 'hide']}
         data['spec']['queries'].append({'kind': 'PanelQuery', 'spec': {'refId': target['refId'], 'hidden': target.get('hide', False), 'query': {
             'kind': 'DataQuery', 'group': 'grafana-postgresql-datasource', 'version': 'v0', 'datasource': datasource, 'spec': query}}})
+    field_config = copy.deepcopy(panel.get('fieldConfig', {'defaults': {}, 'overrides': []}))
+    # These queries produce nonnegative status codes, counts and percentages.
+    # Grafana's code-editor schema requires a numeric base threshold; classic
+    # dashboard exports use null to represent -Infinity.
+    for step in field_config['defaults'].get('thresholds', {}).get('steps', []):
+        if step['value'] is None:
+            step['value'] = 0
     elements[f"panel-{panel['id']}"] = {'kind': 'Panel', 'spec': {
         'id': panel['id'], 'title': panel['title'], 'description': panel.get('description', ''), 'links': panel.get('links', []), 'data': data,
         'vizConfig': {'kind': 'VizConfig', 'group': panel['type'], 'version': '13.2.4', 'spec': {
-            'fieldConfig': panel.get('fieldConfig', {'defaults': {}, 'overrides': []}), 'options': panel.get('options', {})}}}}
+            'fieldConfig': field_config, 'options': panel.get('options', {})}}}}
 rows = []
-for title, ids in [('Overview', [12, 1, 11, 2]), ('Provider state and coverage', [4, 10]), ('Incidents and collector health', [5, 6]), ('History and details', [7, 8, 9])]:
-    panels = [p for p in source['panels'] if p['id'] in ids]
-    top = min(p['gridPos']['y'] for p in panels)
-    items = [{'kind': 'GridLayoutItem', 'spec': {'element': {'kind': 'ElementReference', 'name': f"panel-{p['id']}"},
-        'x': p['gridPos']['x'], 'y': p['gridPos']['y'] - top, 'width': p['gridPos']['w'], 'height': p['gridPos']['h']}} for p in panels]
-    rows.append({'kind': 'RowsLayoutRow', 'spec': {'title': title, 'collapse': False, 'layout': {'kind': 'GridLayout', 'spec': {'items': items}}}})
+# AutoGrid responds to the available width; incident text receives its own row.
+for title, ids, columns, height, collapsed in [
+    ('Overview', [1, 11], 2, 'short', False),
+    ('Issues now', [2], 1, 'tall', False),
+    ('Provider state and collection', [4, 6], 2, 'tall', False),
+    ('Incident details', [5], 1, 'tall', True),
+    ('History', [7], 1, 'tall', True),
+    ('Components and poll details', [8, 9], 2, 'tall', True),
+    ('Coverage and reading guide', [10, 12], 1, 'tall', True),
+]:
+    items = [{'kind': 'AutoGridLayoutItem', 'spec': {'element': {
+        'kind': 'ElementReference', 'name': f'panel-{panel_id}'}}} for panel_id in ids]
+    rows.append({'kind': 'RowsLayoutRow', 'spec': {'title': title, 'collapse': collapsed,
+        'layout': {'kind': 'AutoGridLayout', 'spec': {
+            'maxColumnCount': columns, 'columnWidthMode': 'wide',
+            'rowHeightMode': height, 'fillScreen': False, 'items': items}}}})
 variables = []
 for variable in source['templating']['list']:
     spec = copy.deepcopy(variable)

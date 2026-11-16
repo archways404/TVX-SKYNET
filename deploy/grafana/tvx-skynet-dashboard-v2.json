@@ -6,7 +6,7 @@
   },
   "spec": {
     "title": "TVX-SKYNET External Dependencies",
-    "description": "SOC view of 41 external dependencies: customer-critical integrations, CRMs, payments, carriers, internal tools, active incidents and collection coverage.",
+    "description": "SOC view of external provider status, active incidents, component state, and collector health.",
     "editable": true,
     "cursorSync": "Crosshair",
     "tags": [
@@ -139,7 +139,7 @@
                     "steps": [
                       {
                         "color": "green",
-                        "value": null
+                        "value": 0
                       },
                       {
                         "color": "blue",
@@ -191,8 +191,8 @@
         "kind": "Panel",
         "spec": {
           "id": 2,
-          "title": "Affected providers",
-          "description": "Providers currently degraded, unavailable, stale, or failing collection. Logos are identifiers; status remains visible as text.",
+          "title": "Issues now \u2014 provider, service and incident",
+          "description": "One row per unresolved provider incident, with the affected service and exact incident title. Provider outages without a published incident get an explicit summary. Unreported manual sources and collector failures are shown in provider state below.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -214,7 +214,7 @@
                         "editorMode": "code",
                         "format": "table",
                         "rawQuery": true,
-                        "rawSql": "WITH provider_state AS (\n    SELECT p.*, c.domain, c.collection_mode, c.dependency,\n        (SELECT COUNT(*) FROM external_status.active_incidents i WHERE i.provider_id = p.id) AS incident_count\n    FROM external_status.provider_current p\n    JOIN external_status.source_catalog c USING (id)\n), affected AS (\n    SELECT CASE WHEN domain <> '' THEN 'https://www.google.com/s2/favicons?domain_url=https://' || domain || '&sz=64' END AS \"Icon\",\n        name AS \"Provider\", category AS \"Category\", effective_status AS \"Status\", incident_count AS \"Incidents\",\n        CASE WHEN collection_mode = 'manual' AND last_success_at IS NULL THEN 'Awaiting manual report'\n             WHEN collection_mode = 'manual' AND stale THEN 'Manual report expired'\n             WHEN collection_mode = 'authenticated' AND last_success_at IS NULL THEN 'Credentials / first poll required'\n             WHEN stale THEN 'stale' WHEN consecutive_failures > 0 THEN 'failing' ELSE 'fresh' END AS \"Freshness\",\n        dependency AS \"Depends on provider for\"\n    FROM provider_state\n    WHERE effective_status <> 'operational' OR stale OR consecutive_failures > 0\n), display_rows AS (\n    SELECT * FROM affected\n    UNION ALL\n    SELECT NULL::text, 'No affected providers', ''::text, 'operational', 0::bigint, 'fresh', ''::text\n    WHERE NOT EXISTS (SELECT 1 FROM affected)\n)\nSELECT * FROM display_rows\nORDER BY CASE \"Status\" WHEN 'major_outage' THEN 5 WHEN 'partial_outage' THEN 4 WHEN 'degraded' THEN 3\n    WHEN 'unknown' THEN 2 WHEN 'maintenance' THEN 1 ELSE 0 END DESC, \"Provider\";"
+                        "rawSql": "WITH issues AS (\n    SELECT\n        provider.name AS \"Provider\",\n        COALESCE(affected.names, 'Provider-wide / not specified') AS \"Affected service\",\n        COALESCE(incident.title, 'Provider reports ' || replace(provider.effective_status, '_', ' ')) AS \"Issue\",\n        COALESCE(incident.impact, provider.effective_status) AS \"Impact\",\n        COALESCE(incident.lifecycle, 'provider_status') AS \"Stage\",\n        COALESCE(incident.provider_updated_at, provider.last_success_at) AS \"Updated\",\n        COALESCE(incident.source_url, NULLIF(catalog.status_url, '')) AS \"Source\"\n    FROM external_status.provider_current AS provider\n    JOIN external_status.source_catalog AS catalog ON catalog.id = provider.id\n    LEFT JOIN external_status.active_incidents AS incident ON incident.provider_id = provider.id\n    LEFT JOIN LATERAL (\n        SELECT string_agg(component.name, ', ' ORDER BY component.name) AS names\n        FROM external_status.components AS component\n        WHERE component.provider_id = provider.id\n          AND component.active\n          AND ((incident.external_id IS NOT NULL AND component.external_id = ANY(incident.affected_component_ids))\n               OR (incident.external_id IS NULL AND component.current_status IN ('degraded', 'partial_outage', 'major_outage', 'maintenance')))\n    ) AS affected ON TRUE\n    WHERE incident.external_id IS NOT NULL\n       OR provider.effective_status IN ('degraded', 'partial_outage', 'major_outage', 'maintenance')\n), display_rows AS (\n    SELECT * FROM issues\n    UNION ALL\n    SELECT 'All providers', ''::text, 'No reported service incidents', 'operational', ''::text, NULL::timestamptz, NULL::text\n    WHERE NOT EXISTS (SELECT 1 FROM issues)\n)\nSELECT * FROM display_rows\nORDER BY CASE \"Impact\" WHEN 'major_outage' THEN 5 WHEN 'partial_outage' THEN 4 WHEN 'degraded' THEN 3\n    WHEN 'unknown' THEN 2 WHEN 'maintenance' THEN 1 ELSE 0 END DESC, \"Provider\", \"Updated\" DESC;"
                       }
                     }
                   }
@@ -244,7 +244,7 @@
                     "steps": [
                       {
                         "color": "green",
-                        "value": null
+                        "value": 0
                       }
                     ]
                   }
@@ -253,27 +253,7 @@
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "Icon"
-                    },
-                    "properties": [
-                      {
-                        "id": "custom.cellOptions",
-                        "value": {
-                          "altText": "Provider logo",
-                          "titleText": "Provider logo",
-                          "type": "image"
-                        }
-                      },
-                      {
-                        "id": "custom.width",
-                        "value": 56
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Status"
+                      "options": "Impact"
                     },
                     "properties": [
                       {
@@ -285,17 +265,9 @@
                                 "color": "yellow",
                                 "text": "Degraded"
                               },
-                              "maintenance": {
-                                "color": "blue",
-                                "text": "Maintenance"
-                              },
                               "major_outage": {
                                 "color": "red",
                                 "text": "Major outage"
-                              },
-                              "operational": {
-                                "color": "green",
-                                "text": "Operational"
                               },
                               "partial_outage": {
                                 "color": "orange",
@@ -304,6 +276,14 @@
                               "unknown": {
                                 "color": "gray",
                                 "text": "Unknown"
+                              },
+                              "operational": {
+                                "color": "green",
+                                "text": "Operational"
+                              },
+                              "maintenance": {
+                                "color": "blue",
+                                "text": "Maintenance"
                               }
                             },
                             "type": "value"
@@ -315,43 +295,107 @@
                         "value": {
                           "type": "color-text"
                         }
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 130
                       }
                     ]
                   },
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "Freshness"
+                      "options": "Updated"
                     },
                     "properties": [
                       {
-                        "id": "mappings",
+                        "id": "unit",
+                        "value": "dateTimeAsLocal"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 190
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Source"
+                    },
+                    "properties": [
+                      {
+                        "id": "links",
                         "value": [
                           {
-                            "options": {
-                              "failing": {
-                                "color": "red",
-                                "text": "Poll failing"
-                              },
-                              "fresh": {
-                                "color": "green",
-                                "text": "Fresh"
-                              },
-                              "stale": {
-                                "color": "red",
-                                "text": "Stale"
-                              }
-                            },
-                            "type": "value"
+                            "title": "Open provider status",
+                            "url": "${__value.raw}",
+                            "targetBlank": true
                           }
                         ]
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 140
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Provider"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 150
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Affected service"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 220
+                      },
+                      {
+                        "id": "custom.wrapText",
+                        "value": true
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Issue"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.wrapText",
+                        "value": true
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Stage"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 130
                       }
                     ]
                   }
                 ]
               },
               "options": {
-                "cellHeight": "sm",
+                "cellHeight": "md",
                 "footer": {
                   "countRows": false,
                   "fields": "",
@@ -371,7 +415,7 @@
         "kind": "Panel",
         "spec": {
           "id": 4,
-          "title": "Current provider state",
+          "title": "All providers \u2014 status and collection gaps",
           "description": "Current provider condition, freshness, and last collector error.",
           "links": [],
           "data": {
@@ -394,7 +438,7 @@
                         "editorMode": "code",
                         "format": "table",
                         "rawQuery": true,
-                        "rawSql": "SELECT p.name AS \"Provider\", p.category AS \"Category\", p.effective_status AS \"Status\",\n    c.collection_mode AS \"Collection\", p.stale AS \"Stale\", p.last_success_at AS \"Last successful poll\",\n    p.consecutive_failures AS \"Failures\", COALESCE(p.last_error, '') AS \"Last error\"\nFROM external_status.provider_current p JOIN external_status.source_catalog c USING (id)\nORDER BY CASE p.category WHEN 'customer-critical' THEN 0 WHEN 'carriers' THEN 1 WHEN 'crm' THEN 2\n    WHEN 'second-tier' THEN 3 ELSE 4 END, p.name;"
+                        "rawSql": "SELECT\n    name AS \"Provider\",\n    category AS \"Category\",\n    effective_status AS \"Status\",\n    stale AS \"Stale\",\n    last_success_at AS \"Last successful poll\",\n    consecutive_failures AS \"Failures\",\n    COALESCE(last_error, '') AS \"Last error\"\nFROM external_status.provider_current\nORDER BY name;"
                       }
                     }
                   }
@@ -424,7 +468,7 @@
                     "steps": [
                       {
                         "color": "green",
-                        "value": null
+                        "value": 0
                       }
                     ]
                   }
@@ -539,7 +583,7 @@
         "kind": "Panel",
         "spec": {
           "id": 5,
-          "title": "Active incidents",
+          "title": "Incident details and source links",
           "description": "Current unresolved incidents and the latest lifecycle reported by each provider.",
           "links": [],
           "data": {
@@ -562,7 +606,7 @@
                         "editorMode": "code",
                         "format": "table",
                         "rawQuery": true,
-                        "rawSql": "SELECT\n    source.name AS \"Provider\",\n    incident.title AS \"Incident\",\n    incident.lifecycle AS \"Lifecycle\",\n    incident.impact AS \"Impact\",\n    incident.started_at AS \"Started\",\n    incident.provider_updated_at AS \"Updated\",\n    incident.source_url AS \"Source\"\nFROM external_status.active_incidents AS incident\nJOIN external_status.sources AS source ON source.id = incident.provider_id\nWHERE source.enabled\nORDER BY incident.provider_updated_at DESC;"
+                        "rawSql": "SELECT\n    source.name AS \"Provider\",\n    incident.title AS \"Incident\",\n    incident.lifecycle AS \"Lifecycle\",\n    incident.impact AS \"Impact\",\n    incident.started_at AS \"Started\",\n    incident.provider_updated_at AS \"Updated\",\n    incident.source_url AS \"Source\"\nFROM external_status.active_incidents AS incident\nJOIN external_status.sources AS source ON source.id = incident.provider_id\nORDER BY incident.provider_updated_at DESC;"
                       }
                     }
                   }
@@ -592,7 +636,7 @@
                     "steps": [
                       {
                         "color": "green",
-                        "value": null
+                        "value": 0
                       }
                     ]
                   }
@@ -661,24 +705,6 @@
                         "value": "dateTimeAsLocal"
                       }
                     ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Source"
-                    },
-                    "properties": [
-                      {
-                        "id": "links",
-                        "value": [
-                          {
-                            "title": "Open provider status",
-                            "url": "${__value.raw}",
-                            "targetBlank": true
-                          }
-                        ]
-                      }
-                    ]
                   }
                 ]
               },
@@ -709,7 +735,7 @@
         "spec": {
           "id": 6,
           "title": "Poll reliability",
-          "description": "Collector success rate during the selected dashboard range. Manual sources record attempts to read vendor reports, not network probes. Missing credentials appear as failed authenticated collection.",
+          "description": "Collector success rate during the selected dashboard range.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -761,7 +787,7 @@
                     "steps": [
                       {
                         "color": "red",
-                        "value": null
+                        "value": 0
                       },
                       {
                         "color": "yellow",
@@ -834,7 +860,7 @@
         "spec": {
           "id": 7,
           "title": "Provider state timeline",
-          "description": "Provider condition over the selected time range. Numeric values are mapped back to normalized service states. Rows represent successful observations only; gaps and current freshness must be checked in provider state.",
+          "description": "Provider condition over the selected time range. Numeric values are mapped back to normalized service states.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -917,7 +943,7 @@
                     "steps": [
                       {
                         "color": "green",
-                        "value": null
+                        "value": 0
                       },
                       {
                         "color": "blue",
@@ -990,7 +1016,7 @@
                         "editorMode": "code",
                         "format": "table",
                         "rawQuery": true,
-                        "rawSql": "SELECT\n    source.name AS \"Provider\",\n    component.name AS \"Component\",\n    component.current_status AS \"Status\",\n    component.provider_updated_at AS \"Provider updated\"\nFROM external_status.components AS component\nJOIN external_status.sources AS source ON source.id = component.provider_id\nWHERE source.enabled AND component.active\n  AND component.provider_id ~ '^${provider:regex}$'\nORDER BY source.name, component.name;"
+                        "rawSql": "SELECT\n    source.name AS \"Provider\",\n    component.name AS \"Component\",\n    component.current_status AS \"Status\",\n    component.provider_updated_at AS \"Provider updated\"\nFROM external_status.components AS component\nJOIN external_status.sources AS source ON source.id = component.provider_id\nWHERE component.active\n  AND component.provider_id ~ '^${provider:regex}$'\nORDER BY source.name, component.name;"
                       }
                     }
                   }
@@ -1020,7 +1046,7 @@
                     "steps": [
                       {
                         "color": "green",
-                        "value": null
+                        "value": 0
                       }
                     ]
                   }
@@ -1162,7 +1188,7 @@
                     "steps": [
                       {
                         "color": "green",
-                        "value": null
+                        "value": 0
                       }
                     ]
                   }
@@ -1293,7 +1319,7 @@
                     "steps": [
                       {
                         "color": "green",
-                        "value": null
+                        "value": 0
                       }
                     ]
                   }
@@ -1436,7 +1462,7 @@
                     "steps": [
                       {
                         "color": "green",
-                        "value": null
+                        "value": 0
                       },
                       {
                         "color": "blue",
@@ -1510,7 +1536,7 @@
               },
               "options": {
                 "mode": "markdown",
-                "content": "Provider-reported health: **green** means no issues reported within the configured coverage; **gray** means unknown or stale. Customer-critical services and carriers have a separate summary. Manual carrier/CRM reports expire after 24 hours. Microsoft tenant health needs Graph app credentials. Google feeds do not guarantee reCAPTCHA coverage. CRM outages affect customers using that integration. Review **Dependency coverage and status sources** for limits. Provider selection filters component and poll-detail panels; summary panels always cover all enabled sources."
+                "content": "Start with **Issues now**: each row shows the provider, affected service and exact incident title. Click the source link for the provider\u2019s updates. No reported incidents does not prove every integration is healthy: **All providers** shows missing credentials, manual reports, stale data and failed collection. Manual reports expire after 24 hours. Microsoft tenant health requires Graph app credentials. Provider selection filters component and poll-detail panels; summaries and current issues cover all enabled providers."
               }
             }
           }
@@ -1527,59 +1553,29 @@
               "title": "Overview",
               "collapse": false,
               "layout": {
-                "kind": "GridLayout",
+                "kind": "AutoGridLayout",
                 "spec": {
+                  "maxColumnCount": 2,
+                  "columnWidthMode": "wide",
+                  "rowHeightMode": "short",
+                  "fillScreen": false,
                   "items": [
                     {
-                      "kind": "GridLayoutItem",
+                      "kind": "AutoGridLayoutItem",
                       "spec": {
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-1"
-                        },
-                        "x": 0,
-                        "y": 3,
-                        "width": 12,
-                        "height": 5
+                        }
                       }
                     },
                     {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-2"
-                        },
-                        "x": 0,
-                        "y": 8,
-                        "width": 24,
-                        "height": 12
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
+                      "kind": "AutoGridLayoutItem",
                       "spec": {
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-11"
-                        },
-                        "x": 12,
-                        "y": 3,
-                        "width": 12,
-                        "height": 5
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-12"
-                        },
-                        "x": 0,
-                        "y": 0,
-                        "width": 24,
-                        "height": 3
+                        }
                       }
                     }
                   ]
@@ -1590,76 +1586,59 @@
           {
             "kind": "RowsLayoutRow",
             "spec": {
-              "title": "Provider state and coverage",
+              "title": "Issues now",
               "collapse": false,
               "layout": {
-                "kind": "GridLayout",
+                "kind": "AutoGridLayout",
                 "spec": {
+                  "maxColumnCount": 1,
+                  "columnWidthMode": "wide",
+                  "rowHeightMode": "tall",
+                  "fillScreen": false,
                   "items": [
                     {
-                      "kind": "GridLayoutItem",
+                      "kind": "AutoGridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-2"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "Provider state and collection",
+              "collapse": false,
+              "layout": {
+                "kind": "AutoGridLayout",
+                "spec": {
+                  "maxColumnCount": 2,
+                  "columnWidthMode": "wide",
+                  "rowHeightMode": "tall",
+                  "fillScreen": false,
+                  "items": [
+                    {
+                      "kind": "AutoGridLayoutItem",
                       "spec": {
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-4"
-                        },
-                        "x": 0,
-                        "y": 0,
-                        "width": 24,
-                        "height": 16
+                        }
                       }
                     },
                     {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-10"
-                        },
-                        "x": 0,
-                        "y": 16,
-                        "width": 24,
-                        "height": 16
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          {
-            "kind": "RowsLayoutRow",
-            "spec": {
-              "title": "Incidents and collector health",
-              "collapse": false,
-              "layout": {
-                "kind": "GridLayout",
-                "spec": {
-                  "items": [
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-5"
-                        },
-                        "x": 0,
-                        "y": 0,
-                        "width": 24,
-                        "height": 10
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
+                      "kind": "AutoGridLayoutItem",
                       "spec": {
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-6"
-                        },
-                        "x": 0,
-                        "y": 10,
-                        "width": 24,
-                        "height": 12
+                        }
                       }
                     }
                   ]
@@ -1670,49 +1649,122 @@
           {
             "kind": "RowsLayoutRow",
             "spec": {
-              "title": "History and details",
-              "collapse": false,
+              "title": "Incident details",
+              "collapse": true,
               "layout": {
-                "kind": "GridLayout",
+                "kind": "AutoGridLayout",
                 "spec": {
+                  "maxColumnCount": 1,
+                  "columnWidthMode": "wide",
+                  "rowHeightMode": "tall",
+                  "fillScreen": false,
                   "items": [
                     {
-                      "kind": "GridLayoutItem",
+                      "kind": "AutoGridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-5"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "History",
+              "collapse": true,
+              "layout": {
+                "kind": "AutoGridLayout",
+                "spec": {
+                  "maxColumnCount": 1,
+                  "columnWidthMode": "wide",
+                  "rowHeightMode": "tall",
+                  "fillScreen": false,
+                  "items": [
+                    {
+                      "kind": "AutoGridLayoutItem",
                       "spec": {
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-7"
-                        },
-                        "x": 0,
-                        "y": 0,
-                        "width": 24,
-                        "height": 22
+                        }
                       }
-                    },
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "Components and poll details",
+              "collapse": true,
+              "layout": {
+                "kind": "AutoGridLayout",
+                "spec": {
+                  "maxColumnCount": 2,
+                  "columnWidthMode": "wide",
+                  "rowHeightMode": "tall",
+                  "fillScreen": false,
+                  "items": [
                     {
-                      "kind": "GridLayoutItem",
+                      "kind": "AutoGridLayoutItem",
                       "spec": {
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-8"
-                        },
-                        "x": 0,
-                        "y": 22,
-                        "width": 14,
-                        "height": 14
+                        }
                       }
                     },
                     {
-                      "kind": "GridLayoutItem",
+                      "kind": "AutoGridLayoutItem",
                       "spec": {
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-9"
-                        },
-                        "x": 14,
-                        "y": 22,
-                        "width": 10,
-                        "height": 14
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "Coverage and reading guide",
+              "collapse": true,
+              "layout": {
+                "kind": "AutoGridLayout",
+                "spec": {
+                  "maxColumnCount": 1,
+                  "columnWidthMode": "wide",
+                  "rowHeightMode": "tall",
+                  "fillScreen": false,
+                  "items": [
+                    {
+                      "kind": "AutoGridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-10"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "AutoGridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-12"
+                        }
                       }
                     }
                   ]
