@@ -52,6 +52,12 @@ impl StatuspageCollector {
             })
             .collect::<Vec<_>>();
 
+        if !source.include_components.is_empty() && components.is_empty() {
+            return Err(CollectorError::Invalid(
+                "no configured Statuspage components matched".into(),
+            ));
+        }
+
         let included_component_ids = components
             .iter()
             .map(|component| component.external_id.as_str())
@@ -281,6 +287,7 @@ mod tests {
             request_timeout: None,
             stale_after: None,
             include_components: vec!["Claude Code".into()],
+            metadata: Default::default(),
             collector: CollectorConfig::Statuspage {
                 base_url: Url::parse("https://status.claude.com/").unwrap(),
             },
@@ -323,6 +330,7 @@ mod tests {
             request_timeout: None,
             stale_after: None,
             include_components: vec!["Actions".into()],
+            metadata: Default::default(),
             collector: CollectorConfig::Statuspage {
                 base_url: Url::parse("https://www.githubstatus.com/").unwrap(),
             },
@@ -339,5 +347,8 @@ mod tests {
         let batch = collector.parse(&source, payload).unwrap();
         assert_eq!(batch.status, ServiceStatus::Operational);
         assert_eq!(batch.components.len(), 1);
+        let mut source = source;
+        source.include_components = vec!["Renamed component".into()];
+        assert!(collector.parse(&source, payload).is_err());
     }
 }

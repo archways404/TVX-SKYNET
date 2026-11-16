@@ -11,6 +11,11 @@ sources:
   - id: github
     name: GitHub
     category: developer-tools
+    metadata:
+      dependency: "Development, source hosting and CI"
+      coverage: "Configured GitHub components."
+      status_url: "https://www.githubstatus.com/"
+      domain: "github.com"
     collector:
       type: statuspage
       base_url: https://www.githubstatus.com/
@@ -29,6 +34,11 @@ sources:
   - id: claude
     name: Claude
     category: developer-tools
+    metadata:
+      dependency: "Claude and Claude Code"
+      coverage: "Configured Claude components."
+      status_url: "https://status.claude.com/"
+      domain: "anthropic.com"
     collector:
       type: statuspage
       base_url: https://status.claude.com/
@@ -40,7 +50,12 @@ sources:
 
   - id: twilio
     name: Twilio
-    category: telephony
+    category: customer-critical
+    metadata:
+      dependency: "Network traversal and telephony API"
+      coverage: "Configured Twilio Network Traversal Service and REST API only."
+      status_url: "https://status.twilio.com/"
+      domain: "twilio.com"
     collector:
       type: statuspage
       base_url: https://status.twilio.com/
@@ -51,6 +66,11 @@ sources:
   - id: jira
     name: Jira
     category: developer-tools
+    metadata:
+      dependency: "Internal issue tracking"
+      coverage: "Jira Software Cloud components."
+      status_url: "https://jira-software.status.atlassian.com/"
+      domain: "atlassian.com"
     collector:
       type: statuspage
       base_url: https://jira-software.status.atlassian.com/
@@ -67,6 +87,11 @@ sources:
   - id: sentry
     name: Sentry
     category: ops-analytics
+    metadata:
+      dependency: "Error ingestion and SOC diagnostics"
+      coverage: "Configured Sentry ingestion and notification components."
+      status_url: "https://status.sentry.io/"
+      domain: "sentry.io"
     collector:
       type: statuspage
       base_url: https://status.sentry.io/
@@ -85,6 +110,11 @@ sources:
   - id: segment
     name: Segment
     category: ops-analytics
+    metadata:
+      dependency: "Event ingestion and analytics"
+      coverage: "Configured US and EU ingestion, API and web components."
+      status_url: "https://status.segment.com/"
+      domain: "segment.com"
     collector:
       type: statuspage
       base_url: https://status.segment.com/
@@ -99,6 +129,11 @@ sources:
   - id: hubspot
     name: HubSpot
     category: crm
+    metadata:
+      dependency: "Browser CTI for HubSpot customers"
+      coverage: "Configured CRM, API and integration components."
+      status_url: "https://status.hubspot.com/"
+      domain: "hubspot.com"
     collector:
       type: statuspage
       base_url: https://status.hubspot.com/
@@ -111,6 +146,431 @@ sources:
   - id: elevenlabs
     name: ElevenLabs
     category: ai
+    metadata:
+      dependency: "AI voice integration"
+      coverage: "Public page-level status."
+      status_url: "https://status.elevenlabs.io/"
+      domain: "elevenlabs.io"
     collector:
       type: statuspage
       base_url: https://status.elevenlabs.io/
+
+  # Coverage checked against public endpoints on 2026-11-16.
+
+  - id: microsoft
+    name: "Microsoft 365 / Graph / Teams"
+    category: customer-critical
+    metadata:
+      dependency: "Teams presence, Microsoft contacts/calendar, Direct Routing and SSO"
+      coverage: "Tenant service health requires app credentials and ServiceHealth.Read.All; public pages cannot prove tenant health."
+      status_url: "https://status.cloud.microsoft/"
+      domain: "microsoft.com"
+    collector:
+      type: microsoft_graph
+
+  - id: azure
+    name: "Microsoft Azure (public advisories)"
+    category: customer-critical
+    metadata:
+      dependency: "Entra / Azure infrastructure supporting Microsoft integrations"
+      coverage: "Public major-impact advisories only; unresolved RSS advisories remain unknown. Not Microsoft 365 tenant service health."
+      status_url: "https://azure.status.microsoft/"
+      domain: "microsoft.com"
+    collector:
+      type: feed
+      url: https://rssfeed.azure.status.microsoft/en-us/status/feed/
+
+  - id: google-workspace
+    name: "Google Workspace"
+    category: customer-critical
+    metadata:
+      dependency: "Google contacts/calendar sync and internal mail/calendar"
+      coverage: "Public Workspace incidents; does not verify OAuth, tenant configuration or reCAPTCHA."
+      status_url: "https://www.google.com/appsstatus/dashboard/"
+      domain: "google.com"
+    collector:
+      type: google
+      url: https://www.google.com/appsstatus/dashboard/incidents.json
+
+  - id: google-cloud
+    name: "Google Cloud"
+    category: customer-critical
+    metadata:
+      dependency: "Google Cloud services supporting integrations"
+      coverage: "Public global incidents; reCAPTCHA availability may not be represented."
+      status_url: "https://status.cloud.google.com/"
+      domain: "cloud.google.com"
+    collector:
+      type: google
+      url: https://status.cloud.google.com/incidents.json
+
+  - id: firebase
+    name: "Firebase / FCM"
+    category: customer-critical
+    metadata:
+      dependency: "Android push notifications and incoming call ringing"
+      coverage: "Cloud Messaging incidents only; provider-reported status, not end-to-end ringing."
+      status_url: "https://status.firebase.google.com/"
+      domain: "firebase.google.com"
+    collector:
+      type: google
+      url: https://status.firebase.google.com/incidents.json
+    include_components:
+      - "Cloud Messaging"
+
+  - id: apple-apns
+    name: "Apple APNs"
+    category: customer-critical
+    metadata:
+      dependency: "iOS VoIP push notifications and incoming call ringing"
+      coverage: "APNS service in Apple Developer status feed; public undocumented JSONP format."
+      status_url: "https://developer.apple.com/system-status/"
+      domain: "apple.com"
+    collector:
+      type: apple
+      url: https://www.apple.com/support/systemstatus/data/developer/system_status_en_US.js
+    include_components:
+      - "APNS"
+
+  - id: meta-whatsapp
+    name: "Meta / WhatsApp Business"
+    category: customer-critical
+    metadata:
+      dependency: "WhatsApp Customer Widget and omni messaging"
+      coverage: "WhatsApp Business Platform service state from public page data; undocumented format."
+      status_url: "https://metastatus.com/whatsapp-business-api"
+      domain: "whatsapp.com"
+    collector:
+      type: meta
+      url: https://metastatus.com/data/orgs.json
+
+  - id: bankid
+    name: "BankID"
+    category: customer-critical
+    metadata:
+      dependency: "Sign-in and identity verification"
+      coverage: "Official public Statuspage API."
+      status_url: "https://status.bankid.com/"
+      domain: "bankid.com"
+    collector:
+      type: statuspage
+      base_url: https://status.bankid.com/
+
+  - id: freja
+    name: "Freja eID"
+    category: customer-critical
+    stale_after: 24h
+    metadata:
+      dependency: "Sign-in and identity verification"
+      coverage: "Manual report; no verified public machine-readable feed."
+      status_url: "https://frejaeid.com/en/support/"
+      domain: "frejaeid.com"
+    collector:
+      type: manual
+      path: /app/manual/status.json
+
+  - id: salesforce
+    name: "Salesforce"
+    category: crm
+    metadata:
+      dependency: "Browser CTI for Salesforce customers"
+      coverage: "Global production instance status from the public preview endpoint; unrelated instances may affect aggregate state."
+      status_url: "https://status.salesforce.com/"
+      domain: "salesforce.com"
+    collector:
+      type: salesforce
+      url: https://api.status.salesforce.com/v1/instances/status/preview
+
+  - id: zendesk
+    name: "Zendesk"
+    category: crm
+    stale_after: 24h
+    metadata:
+      dependency: "Browser CTI for Zendesk customers"
+      coverage: "Manual report; the proposed Statuspage endpoint returned 404."
+      status_url: "https://status.zendesk.com/"
+      domain: "zendesk.com"
+    collector:
+      type: manual
+      path: /app/manual/status.json
+
+  - id: freshdesk
+    name: "Freshdesk / Freshworks"
+    category: crm
+    stale_after: 24h
+    metadata:
+      dependency: "Browser CTI for Freshdesk customers"
+      coverage: "Manual report; proposed Statuspage URLs redirect, return HTML or block requests."
+      status_url: "https://status.freshworks.com/"
+      domain: "freshworks.com"
+    collector:
+      type: manual
+      path: /app/manual/status.json
+
+  - id: teamleader
+    name: "Teamleader"
+    category: crm
+    metadata:
+      dependency: "Browser CTI for Teamleader customers"
+      coverage: "Public Teamleader Focus status; only relevant for customers using this CRM."
+      status_url: "https://status.teamleader.eu/"
+      domain: "teamleader.eu"
+    collector:
+      type: statuspage
+      base_url: https://status.teamleader.eu/
+
+  - id: upsales
+    name: "Upsales"
+    category: crm
+    metadata:
+      dependency: "Browser CTI for Upsales customers"
+      coverage: "Public Upsales component status."
+      status_url: "https://status.upsales.com/"
+      domain: "upsales.com"
+    collector:
+      type: statuspage
+      base_url: https://status.upsales.com/
+
+  - id: pipedrive
+    name: "Pipedrive"
+    category: crm
+    stale_after: 24h
+    metadata:
+      dependency: "Browser CTI for Pipedrive customers"
+      coverage: "Manual report; no verified unauthenticated JSON endpoint."
+      status_url: "https://status.pipedrive.com/"
+      domain: "pipedrive.com"
+    collector:
+      type: manual
+      path: /app/manual/status.json
+
+  - id: superoffice
+    name: "SuperOffice"
+    category: crm
+    metadata:
+      dependency: "Browser CTI for SuperOffice customers"
+      coverage: "Public CRM Cloud, login, API and apps."
+      status_url: "https://status.superoffice.com/"
+      domain: "superoffice.com"
+    collector:
+      type: statuspage
+      base_url: https://status.superoffice.com/
+    include_components:
+      - "SuperOffice CRM Cloud"
+      - "Login services"
+      - "API and Apps"
+
+  - id: stripe
+    name: "Stripe"
+    category: second-tier
+    metadata:
+      dependency: "Payments and top-ups"
+      coverage: "Public Stripe status."
+      status_url: "https://status.stripe.com/"
+      domain: "stripe.com"
+    collector:
+      type: statuspage
+      base_url: https://www.stripestatus.com/
+
+  - id: adyen
+    name: "Adyen"
+    category: second-tier
+    stale_after: 24h
+    metadata:
+      dependency: "Checkout payments"
+      coverage: "Manual report; proposed Statuspage URL returns HTML rather than JSON."
+      status_url: "https://status.adyen.com/"
+      domain: "adyen.com"
+    collector:
+      type: manual
+      path: /app/manual/status.json
+
+  - id: mapbox
+    name: "Mapbox"
+    category: second-tier
+    metadata:
+      dependency: "Maps via api.mapbox.com"
+      coverage: "Global Mapbox component status."
+      status_url: "https://status.mapbox.com/"
+      domain: "mapbox.com"
+    collector:
+      type: statuspage
+      base_url: https://status.mapbox.com/
+
+  - id: aws-s3
+    name: "AWS S3 / Frankfurt"
+    category: second-tier
+    metadata:
+      dependency: "Desktop MSI downloads from S3 eu-central-1"
+      coverage: "Regional public advisories only; RSS advisories without explicit resolution remain unknown."
+      status_url: "https://health.aws.amazon.com/health/status"
+      domain: "aws.amazon.com"
+    collector:
+      type: feed
+      url: https://status.aws.amazon.com/rss/s3-eu-central-1.rss
+
+  - id: cloudflare
+    name: "Cloudflare / CDN"
+    category: second-tier
+    metadata:
+      dependency: "cdnjs assets on some pages"
+      coverage: "CDN/Cache component; cdnjs has no dedicated component in this feed."
+      status_url: "https://www.cloudflarestatus.com/"
+      domain: "cloudflare.com"
+    collector:
+      type: statuspage
+      base_url: https://www.cloudflarestatus.com/
+    include_components:
+      - "CDN/Cache"
+
+  - id: spirius
+    name: "Spirius"
+    category: second-tier
+    stale_after: 24h
+    metadata:
+      dependency: "Finland SMS gateway"
+      coverage: "Manual report; no verified public status feed."
+      status_url: ""
+      domain: "spirius.com"
+    collector:
+      type: manual
+      path: /app/manual/status.json
+
+  - id: slack
+    name: "Slack"
+    category: internal-tools
+    metadata:
+      dependency: "Internal team communications"
+      coverage: "Official public Slack Status API v2."
+      status_url: "https://slack-status.com/"
+      domain: "slack.com"
+    collector:
+      type: slack
+      url: https://slack-status.com/api/v2.0.0/current
+
+  - id: 1password
+    name: "1Password"
+    category: internal-tools
+    metadata:
+      dependency: "Internal password and secret access"
+      coverage: "Global public component status across regions."
+      status_url: "https://1password.statuspage.io/"
+      domain: "1password.com"
+    collector:
+      type: statuspage
+      base_url: https://1password.statuspage.io/
+
+  - id: confluence
+    name: "Confluence"
+    category: internal-tools
+    metadata:
+      dependency: "Internal documentation"
+      coverage: "Dedicated Confluence Cloud feed; separate from Jira Software."
+      status_url: "https://confluence.status.atlassian.com/"
+      domain: "atlassian.com"
+    collector:
+      type: statuspage
+      base_url: https://confluence.status.atlassian.com/
+
+  - id: jsm
+    name: "Jira Service Management"
+    category: internal-tools
+    metadata:
+      dependency: "Internal service desk and SOC tickets"
+      coverage: "Dedicated JSM Cloud feed; separate from Jira Software."
+      status_url: "https://jira-service-management.status.atlassian.com/"
+      domain: "atlassian.com"
+    collector:
+      type: statuspage
+      base_url: https://jira-service-management.status.atlassian.com/
+
+  - id: telia
+    name: "Telia"
+    category: carriers
+    stale_after: 24h
+    metadata:
+      dependency: "Carrier connectivity and customer calling"
+      coverage: "Manual vendor-confirmed report; no verified pollable status API."
+      status_url: ""
+      domain: ""
+    collector:
+      type: manual
+      path: /app/manual/status.json
+
+  - id: telenor
+    name: "Telenor"
+    category: carriers
+    stale_after: 24h
+    metadata:
+      dependency: "Carrier connectivity and customer calling"
+      coverage: "Manual vendor-confirmed report; no verified pollable status API."
+      status_url: ""
+      domain: ""
+    collector:
+      type: manual
+      path: /app/manual/status.json
+
+  - id: tdc
+    name: "TDC"
+    category: carriers
+    stale_after: 24h
+    metadata:
+      dependency: "Carrier connectivity and customer calling"
+      coverage: "Manual vendor-confirmed report; no verified pollable status API."
+      status_url: ""
+      domain: ""
+    collector:
+      type: manual
+      path: /app/manual/status.json
+
+  - id: telia-dk
+    name: "Telia DK"
+    category: carriers
+    stale_after: 24h
+    metadata:
+      dependency: "Carrier connectivity and customer calling"
+      coverage: "Manual vendor-confirmed report; no verified pollable status API."
+      status_url: ""
+      domain: ""
+    collector:
+      type: manual
+      path: /app/manual/status.json
+
+  - id: proximus
+    name: "Proximus"
+    category: carriers
+    stale_after: 24h
+    metadata:
+      dependency: "Carrier connectivity and customer calling"
+      coverage: "Manual vendor-confirmed report; no verified pollable status API."
+      status_url: ""
+      domain: ""
+    collector:
+      type: manual
+      path: /app/manual/status.json
+
+  - id: line-carrier
+    name: "Line Carrier"
+    category: carriers
+    stale_after: 24h
+    metadata:
+      dependency: "Carrier connectivity and customer calling"
+      coverage: "Manual vendor-confirmed report; no verified pollable status API."
+      status_url: ""
+      domain: ""
+    collector:
+      type: manual
+      path: /app/manual/status.json
+
+  - id: erate
+    name: "Erate"
+    category: carriers
+    stale_after: 24h
+    metadata:
+      dependency: "Carrier connectivity and customer calling"
+      coverage: "Manual vendor-confirmed report; no verified pollable status API."
+      status_url: ""
+      domain: ""
+    collector:
+      type: manual
+      path: /app/manual/status.json
