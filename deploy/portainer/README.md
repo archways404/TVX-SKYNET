@@ -144,6 +144,7 @@ secret management, not in a YAML file committed to Git.
 The default 41-source configuration needs only the existing combinator stack.
 No changedetection, RSS-Bridge or browser stack is required by these collectors.
 Microsoft uses its public page data and needs no tenant ID. Telia and Telenor
-collect actual public fixed-network cases. Four remaining carrier pages
-provide information-only coverage: their network health remains unknown.
+collect actual public fixed-network cases. TDC and Norlys have dedicated public
+incident/bulletin adapters; Erate uses official Telavox Norway status, and Proximus
+uses its public Enco voice/SMS status with explicit scope limits.
 See [source coverage](../../config/README.md) for the exact limits.

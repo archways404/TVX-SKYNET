@@ -97,6 +97,9 @@ pub enum CollectorConfig {
     Zendesk { url: Url },
     Pipedrive { url: Url },
     PublicNotice { url: Url },
+    Tdc { url: Url },
+    Norlys { url: Url },
+    StatusIo { url: Url },
     Manual { path: std::path::PathBuf },
 }
 

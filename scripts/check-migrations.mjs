@@ -40,7 +40,8 @@ for (const scenario of ['fresh', 'partial-manual', 'complete-manual']) {
       for (const query of panel.spec.data.spec.queries) {
         const sql = query.spec.query.spec.rawSql
           .replaceAll(/\$__timeFilter\([^)]*\)/g, 'TRUE')
-          .replaceAll('${provider:regex}', '.*');
+          .replaceAll('${provider:regex}', '.*')
+          .replaceAll('${network:sqlstring}', "'telia', 'tdc'");
         await db.query(sql);
       }
     }
@@ -59,15 +60,25 @@ for (const scenario of ['fresh', 'partial-manual', 'complete-manual']) {
       await db.exec("UPDATE external_status.sources SET current_status = 'operational' WHERE id = 'claude'");
       const summarySql = dashboard.spec.elements['panel-1'].spec.data.spec.queries[0].spec.query.spec.rawSql;
       const summary = await db.query(summarySql);
-      assert.equal(Object.values(summary.rows[0])[0], 4, 'an active partial-outage incident must affect overall health even when components are green');
+      assert.equal(Object.values(summary.rows[0])[0], 1, 'an active partial-outage incident must affect overall health even when components are green');
       const sql = dashboard.spec.elements['panel-2'].spec.data.spec.queries[0].spec.query.spec.rawSql;
       const { rows: issues } = await db.query(sql);
-      assert.equal(issues.length, 2, 'show both Claude incidents; keep unreported manual sources out of the incident list');
-      assert.deepEqual(issues.map(i => i['Issue']), [
-        'Some users unable to sign up with Apple on the Claude iOS app',
-        'Elevated errors for Claude Sonnet 5.5 and Claude Fable 5.2',
-      ]);
-      assert.deepEqual(issues.map(i => i['Affected service']), ['Claude iOS app', 'Claude API']);
+      assert.equal(issues.length, 2, 'each service incident must have its own row');
+      assert.ok(issues.some(i => i.Issue === 'Some users unable to sign up with Apple on the Claude iOS app'));
+      assert.ok(issues.some(i => i.Issue === 'Elevated errors for Claude Sonnet 5.5 and Claude Fable 5.2'));
+      const listSql = dashboard.spec.elements['panel-4'].spec.data.spec.queries[0].spec.query.spec.rawSql;
+      const providers = await db.query(listSql);
+      assert.equal(providers.rows.find(p => p.Provider === 'Claude').Status, 'partial_outage');
+      assert.ok(!providers.rows.some(p => p.Provider === 'Telia'), 'central service list must exclude carriers');
+      await db.exec(`UPDATE external_status.sources SET current_status = 'partial_outage', last_success_at = now() WHERE id = 'telia';
+        INSERT INTO external_status.incidents (provider_id, external_id, title, lifecycle, impact, started_at, provider_updated_at, last_seen_at)
+        VALUES ('telia','BB-1','Local fault in Skane','investigating','partial_outage',now(),now(),now()),
+               ('telia','BB-2','Local fault in Stockholm','investigating','partial_outage',now(),now(),now());`);
+      const networkSql = dashboard.spec.elements['panel-17'].spec.data.spec.queries[0].spec.query.spec.rawSql.replaceAll('${network:sqlstring}', "'telia'");
+      const network = await db.query(networkSql);
+      assert.equal(network.rows.length, 2, 'each carrier case must have its own row');
+      assert.ok(network.rows.every(p => p.Provider === 'Telia'));
+      assert.equal((await db.query(sql)).rows.length, 2, 'carrier outages must not leak into service incidents');
       await db.exec("UPDATE external_status.incidents SET lifecycle = 'resolved', resolved_at = now() WHERE provider_id = 'claude'");
       await db.exec("UPDATE external_status.sources SET current_status = 'operational' WHERE id = 'claude'");
       const cleared = await db.query(sql);

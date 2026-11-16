@@ -4,10 +4,9 @@ All 41 default sources are collected automatically. No manual reports, tenant ID
 new database migration, browser container or changedetection stack is required.
 Rebuild the existing combinator image after source or Rust changes.
 
-37 sources publish usable health or incident information. Four carriers expose
-public information pages without a verified global service-health signal. Those
-pages are retrieved automatically, but their network status remains `unknown`.
-A website returning HTTP 200 is never interpreted as an operational phone network.
+All default sources now parse actual provider status, incident or service-bulletin
+data; no default source is a homepage-only `public_notice` check. Coverage remains
+scoped: a successful public feed does not prove every customer connection works.
 
 ## Newly automated sources
 
@@ -35,21 +34,23 @@ production instances; narrow `include_components` when instance scope is known.
 Google status feeds do not guarantee reCAPTCHA coverage. Meta and Salesforce
 currently provide component states without full incident narratives.
 
-## Carrier coverage limits
+## Carrier sources and scope
 
-Telia SE and Telenor SE now collect actual cases from their official public
-fixed-network maps, including affected services, county viewport associations,
-start times and estimated repair times. Telia also reports affected customer
-counts. Cases are deduplicated across viewports. These collectors cover broadband,
-IP telephony and TV, not mobile networks or an end-to-end Telavox connection.
-A local case produces a partial outage, not a claim of a nationwide network failure.
+| Provider | Automatic collection | Scope |
+| --- | --- | --- |
+| Telia SE | Public map county/case HTML | Broadband, IP telephony and TV; case IDs, viewport-associated counties, timestamps and customer counts. |
+| Telenor SE | Public map JSON using its anonymous token and AJAX headers | Fixed-network cases, counties, start and estimated repair times. |
+| TDC / TDC NET | `https://tdc.dk/api/driftsinfo/getfasdata` | Public mobile, broadband/IP, access and transport incidents. Explicit resolution and planned windows determine current state. |
+| Telia DK / Norlys | Official current-bulletin HTML | DataNet, fixed, mobile, hosting and UC. Bulletins more than 24 hours beyond their repair estimate, or lacking one, remain unconfirmed/unknown. Planned-work sections are excluded. |
+| Proximus | `https://status.enco.io/api/v2/summary.json` | **Enco voice/SMS/fixed-mobile-unification APIs only.** This does not establish Belgian access-network or wholesale trunk health. |
+| Line Carrier | Official Finnish RSS | Resolved `Korjattu:` titles excluded. Other public advisories preserve uncertain impact. |
+| Erate / Telavox Norway | `https://status.io/1.0/status/5c77e330cac2ed049a438709` | Erate's website redirects to Telavox Norway and links its official status page. Only Norway components/incidents are collected; no independent Erate MVNO/wholesale feed was verified. |
 
-TDC, Telia DK/Norlys, Proximus and Erate still have `public_notice` checks.
-Their pages are fetched automatically but do not yet produce verified outage data.
-They appear as **Public info only**, remain unknown, and count as coverage gaps.
-These four collectors need further source investigation; they are not complete
-outage monitoring. Neither a successful fetch nor arbitrary page changes imply
-healthy service or an outage.
+Carrier incidents remain separate from service-provider incidents in Grafana.
+Every network case has its own row; the Network provider selector narrows both
+carrier panels. Regional faults do not mean the carrier is unavailable nationwide.
+Proximus wholesale/access and independent Erate platform coverage remain limited;
+these limits are not solved merely by polling the public API more frequently.
 
 ## Optional authenticated / manual collectors
 

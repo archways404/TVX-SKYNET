@@ -1,3 +1,4 @@
+mod carriers;
 mod public;
 mod telenor;
 mod telia;
@@ -179,7 +180,10 @@ impl Collector for CustomCollector {
             | CollectorConfig::Adyen { url }
             | CollectorConfig::Zendesk { url }
             | CollectorConfig::Pipedrive { url }
-            | CollectorConfig::PublicNotice { url } => url,
+            | CollectorConfig::PublicNotice { url }
+            | CollectorConfig::Tdc { url }
+            | CollectorConfig::Norlys { url }
+            | CollectorConfig::StatusIo { url } => url,
             _ => return Err(CollectorError::Unsupported(source.id.clone())),
         };
         let mut endpoint = url.clone();
@@ -271,6 +275,14 @@ pub(super) fn parse(
     source: &SourceConfig,
     body: &[u8],
 ) -> Result<ObservationBatch, CollectorError> {
+    if matches!(
+        source.collector,
+        CollectorConfig::Tdc { .. }
+            | CollectorConfig::Norlys { .. }
+            | CollectorConfig::StatusIo { .. }
+    ) {
+        return carriers::parse(source, body);
+    }
     if matches!(
         source.collector,
         CollectorConfig::MicrosoftPublic { .. }
@@ -761,11 +773,13 @@ mod tests {
         let config = AppConfig::load("config/sources.yaml").unwrap();
         let registry = crate::collectors::CollectorRegistry::new(&config.defaults).unwrap();
         let mut failures = vec![];
+        let only = std::env::var("LIVE_SOURCE").ok();
         for source in config.sources.iter().filter(|s| {
-            !matches!(
-                s.collector,
-                CollectorConfig::Manual { .. } | CollectorConfig::MicrosoftGraph
-            )
+            only.as_ref().is_none_or(|id| id == &s.id)
+                && !matches!(
+                    s.collector,
+                    CollectorConfig::Manual { .. } | CollectorConfig::MicrosoftGraph
+                )
         }) {
             match tokio::time::timeout(std::time::Duration::from_secs(30), registry.collect(source))
                 .await

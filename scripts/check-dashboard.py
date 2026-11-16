@@ -7,7 +7,7 @@ v2 = json.loads((root / 'tvx-skynet-dashboard-v2.json').read_text())
 assert v2['apiVersion'] == 'dashboard.grafana.app/v2'
 spec = v2['spec']
 ids = [p['spec']['id'] for p in spec['elements'].values()]
-assert len(ids) == len(set(ids)) == len(v1['panels']) == 11
+assert len(ids) == len(set(ids)) == len(v1['panels']) == 13
 references = []
 for row in spec['layout']['spec']['rows']:
     layout = row['spec']['layout']
@@ -35,6 +35,9 @@ for variable in spec['variables']:
     assert {'name', 'current', 'hide', 'refresh', 'skipUrlSync', 'query', 'regex', 'sort', 'options', 'multi', 'includeAll', 'allowCustomValue'} <= v.keys()
     assert v['query']['kind'] == 'DataQuery'
     assert v['query']['datasource']['name'] == 'dg46qijl86fi8d'
-print('Both JSON exports parse; 11 unique panels, complete layouts and correct v2 query/datasource structure.')
+print('Both JSON exports parse; 13 unique panels, complete layouts and correct v2 query/datasource structure.')
 
 assert 'panel-11' not in spec['elements'], 'customer-critical summary was explicitly removed'
+
+assert spec["elements"]["panel-4"]["spec"]["vizConfig"]["spec"]["options"]["enablePagination"] is False
+assert "LIMIT" not in spec["elements"]["panel-4"]["spec"]["data"]["spec"]["queries"][0]["spec"]["query"]["spec"]["rawSql"].upper()

@@ -358,7 +358,9 @@ mod tests {
             assert!(
                 !matches!(
                     source.collector,
-                    CollectorConfig::Manual { .. } | CollectorConfig::MicrosoftGraph
+                    CollectorConfig::Manual { .. }
+                        | CollectorConfig::MicrosoftGraph
+                        | CollectorConfig::PublicNotice { .. }
                 ),
                 "{}",
                 source.id

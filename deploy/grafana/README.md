@@ -42,8 +42,8 @@ Use **[tvx-skynet-dashboard-v2.json](tvx-skynet-dashboard-v2.json)** for the sup
 Grafana v2 installation. It preserves dashboard identity
 `tvx-skynet-external-status` and PostgreSQL datasource UID `dg46qijl86fi8d`.
 The original `tvx-skynet-dashboard.json` remains a v1 import with datasource mapping.
-Both exports include the same 11 panels, including coverage gaps, dependency
-coverage and a reading guide. The customer-critical summary has been removed. Provider metadata drives
+Both exports include the same 13 panels, including separate network status/outage tables,
+dependency coverage and a reading guide. The customer-critical summary has been removed. Provider metadata drives
 logos, categories and coverage, so new rows need no hard-coded dashboard edits.
 
 Rebuild/redeploy the collector **before** importing either updated export: the
@@ -99,11 +99,13 @@ Claude example incidents appear with their affected services.
 
 ## Compact dashboard and automatic-source defaults
 
-The current v2 export has 11 panels. It removes the customer-critical Unknown
-card, uses compact custom row heights with responsive widths, gives incidents a
-full-width table with wrapped titles, and adds provider icons plus a short
-**Used for** description. Operational collection is separated from the coverage
-count; the four carrier information-only checks remain explicit coverage gaps.
+The current v2 export has 13 panels, ordered as outage summary, service incidents,
+network provider status, one row per network outage, then the complete alphabetical
+non-network provider list. Logos, affected services/areas, status, timestamps and
+source links are included. All table pagination is disabled. The complete service
+list has no SQL row limit and its panel height is generated from configured source
+counts. Network cases can be narrowed with the Network provider selector. Detailed
+collector, incident, history, component and coverage panels start collapsed below.
 No default source needs a manual report or Microsoft tenant ID.
 
 The three metadata panels now read the already-accessible `external_status.sources`

@@ -508,40 +508,51 @@ sources:
       url: https://mboss.telenor.se/outageportalfixed/
 
   - id: tdc
-    name: "TDC"
+    name: "TDC / TDC NET"
     category: carriers
     metadata:
-      dependency: "Carrier connectivity and customer calls"
-      coverage: "Automatic public page retrieval. No verified global network-health signal; remains Unknown. Location/account-specific outages require provider access."
-      status_url: "https://tdc.dk/"
+      dependency: "Danish carrier connectivity, customer calls and mobile access"
+      coverage: "Official TDC public network incidents for mobile telephony, broadband/IP, access and transport. Local incidents; resolved reports and future planned windows are excluded."
+      status_url: "https://tdc.dk/da/kundeservice/driftsinformation"
       domain: "tdc.dk"
     collector:
-      type: public_notice
-      url: https://tdc.dk/
+      type: tdc
+      url: https://tdc.dk/api/driftsinfo/getfasdata
+    include_components:
+      - Mobil Telefoni
+      - Mobil Tjenester
+      - Telefoni
+      - Bredbånd og IP
+      - Accesnet
+      - Transportnet
 
   - id: telia-dk
     name: "Telia DK / Norlys"
     category: carriers
     metadata:
-      dependency: "Carrier connectivity and customer calls"
-      coverage: "Automatic public page retrieval. No verified global network-health signal; remains Unknown. Location/account-specific outages require provider access."
-      status_url: "https://norlys.dk/"
+      dependency: "Danish carrier connectivity, customer calls and mobile access"
+      coverage: "Official Norlys current service bulletins and explicit no-known-issues statements. Notices more than 24 hours past their repair estimate remain unconfirmed/unknown rather than fresh outage evidence."
+      status_url: "https://shop.norlys.dk/kundeservice/mobil/dakning-og-drift/driftsinformation/"
       domain: "norlys.dk"
     collector:
-      type: public_notice
-      url: https://norlys.dk/
+      type: norlys
+      url: https://shop.norlys.dk/kundeservice/mobil/dakning-og-drift/driftsinformation/
 
   - id: proximus
-    name: "Proximus"
+    name: "Proximus (public voice/SMS APIs)"
     category: carriers
     metadata:
-      dependency: "Carrier connectivity and customer calls"
-      coverage: "Automatic public page retrieval. No verified global network-health signal; remains Unknown. Location/account-specific outages require provider access."
-      status_url: "https://www.proximus.be/"
+      dependency: "Carrier calls and messaging; public collection covers Enco voice/SMS APIs"
+      coverage: "Official Proximus Enco voice, SMS and fixed/mobile unification components and incidents. This feed does not establish Belgian access-network or wholesale trunk health; those account/line-specific services remain outside public coverage."
+      status_url: "https://status.enco.io/"
       domain: "proximus.be"
     collector:
-      type: public_notice
-      url: https://www.proximus.be/
+      type: statuspage
+      base_url: https://status.enco.io/
+    include_components:
+      - NextGen voice services
+      - SMS API
+      - Fixed Mobile Unification API
 
   - id: line-carrier
     name: "Line Carrier"
@@ -556,13 +567,15 @@ sources:
       url: https://www.linecarrier.fi/hairiotiedotteet/feed/
 
   - id: erate
-    name: "Erate"
+    name: "Erate / Telavox Norway"
     category: carriers
     metadata:
-      dependency: "Carrier connectivity and customer calls"
-      coverage: "Automatic public page retrieval. No verified global network-health signal; remains Unknown. Location/account-specific outages require provider access."
-      status_url: "https://www.erate.no/"
-      domain: "erate.no"
+      dependency: "Norwegian carrier connectivity, mobile services and customer calls"
+      coverage: "Erate's public website redirects to Telavox Norway and links this official status page. Collects Norway components and Norway-targeted incidents only; no independent Erate wholesale/MVNO platform feed is exposed."
+      status_url: "https://status.telavox.com/"
+      domain: "telavox.no"
     collector:
-      type: public_notice
-      url: https://www.erate.no/
+      type: status_io
+      url: https://status.io/1.0/status/5c77e330cac2ed049a438709
+    include_components:
+      - Norway

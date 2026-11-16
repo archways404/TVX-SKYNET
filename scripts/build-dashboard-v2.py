@@ -5,6 +5,8 @@ the v2 export uses the PostgreSQL UID provided for the SOC Grafana instance.
 """
 import copy
 import json
+import re
+import math
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
@@ -29,12 +31,16 @@ for panel in source['panels']:
         'id': panel['id'], 'title': panel['title'], 'description': panel.get('description', ''), 'links': panel.get('links', []), 'data': data,
         'vizConfig': {'kind': 'VizConfig', 'group': panel['type'], 'version': '13.2.4', 'spec': {
             'fieldConfig': field_config, 'options': panel.get('options', {})}}}}
+provider_count = len(re.findall(r"^  - id:", (root / "config/sources.yaml").read_text(), re.MULTILINE))
+network_count = len(re.findall(r"^    category: carriers", (root / "config/sources.yaml").read_text(), re.MULTILINE))
 rows = []
 # AutoGrid responds to the available width; incident text receives its own row.
 for title, ids, columns, height, collapsed in [
     ('Overview', [1, 13], 2, 100, False),
-    ('Current incidents', [2], 1, 230, False),
-    ('Provider health', [4], 1, 320, False),
+    ('Service outages', [2], 1, 320, False),
+    ('Network provider status', [18], 1, 100 + network_count * 44, False),
+    ('Network outages', [17], 1, 640, False),
+    ('All service providers', [4], 1, 100 + (provider_count - network_count) * 44, False),
     ('Collection reliability', [6], 1, 260, True),
     ('Incident details', [5], 1, 230, True),
     ('History', [7], 1, 360, True),
