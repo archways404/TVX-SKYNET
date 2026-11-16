@@ -366,11 +366,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-<<<<<<< Updated upstream
-          "rawSql": "WITH provider_state AS (\n    SELECT\n        provider.id,\n        provider.name,\n        provider.effective_status,\n        provider.stale,\n        provider.consecutive_failures,\n        COUNT(incident.external_id)::bigint AS incident_count\n    FROM external_status.provider_current AS provider\n    LEFT JOIN external_status.active_incidents AS incident\n        ON incident.provider_id = provider.id\n    GROUP BY\n        provider.id,\n        provider.name,\n        provider.effective_status,\n        provider.stale,\n        provider.consecutive_failures\n), affected AS (\n    SELECT\n        CASE id\n            WHEN 'github' THEN 'https://www.google.com/s2/favicons?domain_url=https://github.com&sz=64'\n            WHEN 'claude' THEN 'https://www.google.com/s2/favicons?domain_url=https://anthropic.com&sz=64'\n            WHEN 'twilio' THEN 'https://www.google.com/s2/favicons?domain_url=https://twilio.com&sz=64'\n            WHEN 'jira' THEN 'https://www.google.com/s2/favicons?domain_url=https://atlassian.com&sz=64'\n            WHEN 'sentry' THEN 'https://www.google.com/s2/favicons?domain_url=https://sentry.io&sz=64'\n            WHEN 'segment' THEN 'https://www.google.com/s2/favicons?domain_url=https://segment.com&sz=64'\n            WHEN 'hubspot' THEN 'https://www.google.com/s2/favicons?domain_url=https://hubspot.com&sz=64'\n            WHEN 'elevenlabs' THEN 'https://www.google.com/s2/favicons?domain_url=https://elevenlabs.io&sz=64'\n            ELSE 'https://www.google.com/s2/favicons?domain_url=https://statuspage.io&sz=64'\n        END AS \"Icon\",\n        name AS \"Provider\",\n        effective_status AS \"Status\",\n        incident_count AS \"Incidents\",\n        CASE\n            WHEN stale THEN 'stale'\n            WHEN consecutive_failures > 0 THEN 'failing'\n            ELSE 'fresh'\n        END AS \"Freshness\"\n    FROM provider_state\n    WHERE effective_status <> 'operational'\n       OR stale\n       OR consecutive_failures > 0\n), display_rows AS (\n    SELECT * FROM affected\n    UNION ALL\n    SELECT\n        NULL::text AS \"Icon\",\n        'No affected providers'::text AS \"Provider\",\n        'operational'::text AS \"Status\",\n        0::bigint AS \"Incidents\",\n        'fresh'::text AS \"Freshness\"\n    WHERE NOT EXISTS (SELECT 1 FROM affected)\n)\nSELECT *\nFROM display_rows\nORDER BY\n    CASE \"Status\"\n        WHEN 'major_outage' THEN 5\n        WHEN 'partial_outage' THEN 4\n        WHEN 'degraded' THEN 3\n        WHEN 'unknown' THEN 2\n        WHEN 'maintenance' THEN 1\n        ELSE 0\n    END DESC,\n    \"Provider\";",
-=======
           "rawSql": "WITH issues AS (\n    SELECT\n        provider.name AS \"Provider\",\n        COALESCE(affected.names, 'Provider-wide / not specified') AS \"Affected service\",\n        COALESCE(incident.title, 'Provider reports ' || replace(provider.effective_status, '_', ' ')) AS \"Issue\",\n        COALESCE(incident.impact, provider.effective_status) AS \"Impact\",\n        COALESCE(incident.lifecycle, 'provider_status') AS \"Stage\",\n        COALESCE(incident.provider_updated_at, provider.last_success_at) AS \"Updated\",\n        COALESCE(incident.source_url, NULLIF(catalog.status_url, '')) AS \"Source\"\n    FROM external_status.provider_current AS provider\n    JOIN external_status.source_catalog AS catalog ON catalog.id = provider.id\n    LEFT JOIN external_status.active_incidents AS incident ON incident.provider_id = provider.id\n    LEFT JOIN LATERAL (\n        SELECT string_agg(component.name, ', ' ORDER BY component.name) AS names\n        FROM external_status.components AS component\n        WHERE component.provider_id = provider.id\n          AND component.active\n          AND ((incident.external_id IS NOT NULL AND component.external_id = ANY(incident.affected_component_ids))\n               OR (incident.external_id IS NULL AND component.current_status IN ('degraded', 'partial_outage', 'major_outage', 'maintenance')))\n    ) AS affected ON TRUE\n    WHERE incident.external_id IS NOT NULL\n       OR provider.effective_status IN ('degraded', 'partial_outage', 'major_outage', 'maintenance')\n), display_rows AS (\n    SELECT * FROM issues\n    UNION ALL\n    SELECT 'All providers', ''::text, 'No reported service incidents', 'operational', ''::text, NULL::timestamptz, NULL::text\n    WHERE NOT EXISTS (SELECT 1 FROM issues)\n)\nSELECT * FROM display_rows\nORDER BY CASE \"Impact\" WHEN 'major_outage' THEN 5 WHEN 'partial_outage' THEN 4 WHEN 'degraded' THEN 3\n    WHEN 'unknown' THEN 2 WHEN 'maintenance' THEN 1 ELSE 0 END DESC, \"Provider\", \"Updated\" DESC;",
->>>>>>> Stashed changes
           "refId": "A"
         }
       ],
@@ -1131,8 +1127,6 @@
       ],
       "title": "Recent poll attempts",
       "type": "table"
-<<<<<<< Updated upstream
-=======
     },
     {
       "datasource": {
@@ -1365,7 +1359,6 @@
         "w": 24,
         "h": 3
       }
->>>>>>> Stashed changes
     }
   ],
   "refresh": "1m",

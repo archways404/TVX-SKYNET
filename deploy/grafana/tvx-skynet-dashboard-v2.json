@@ -6,7 +6,7 @@
   },
   "spec": {
     "title": "TVX-SKYNET External Dependencies",
-    "description": "SOC view of 41 external dependencies: customer-critical integrations, CRMs, payments, carriers, internal tools, active incidents and collection coverage.",
+    "description": "SOC view of external provider status, active incidents, component state, and collector health.",
     "editable": true,
     "cursorSync": "Crosshair",
     "tags": [
@@ -438,7 +438,7 @@
                         "editorMode": "code",
                         "format": "table",
                         "rawQuery": true,
-                        "rawSql": "SELECT p.name AS \"Provider\", p.category AS \"Category\", p.effective_status AS \"Status\",\n    c.collection_mode AS \"Collection\", p.stale AS \"Stale\", p.last_success_at AS \"Last successful poll\",\n    p.consecutive_failures AS \"Failures\", COALESCE(p.last_error, '') AS \"Last error\"\nFROM external_status.provider_current p JOIN external_status.source_catalog c USING (id)\nORDER BY CASE p.category WHEN 'customer-critical' THEN 0 WHEN 'carriers' THEN 1 WHEN 'crm' THEN 2\n    WHEN 'second-tier' THEN 3 ELSE 4 END, p.name;"
+                        "rawSql": "SELECT\n    name AS \"Provider\",\n    category AS \"Category\",\n    effective_status AS \"Status\",\n    stale AS \"Stale\",\n    last_success_at AS \"Last successful poll\",\n    consecutive_failures AS \"Failures\",\n    COALESCE(last_error, '') AS \"Last error\"\nFROM external_status.provider_current\nORDER BY name;"
                       }
                     }
                   }
@@ -606,7 +606,7 @@
                         "editorMode": "code",
                         "format": "table",
                         "rawQuery": true,
-                        "rawSql": "SELECT\n    source.name AS \"Provider\",\n    incident.title AS \"Incident\",\n    incident.lifecycle AS \"Lifecycle\",\n    incident.impact AS \"Impact\",\n    incident.started_at AS \"Started\",\n    incident.provider_updated_at AS \"Updated\",\n    incident.source_url AS \"Source\"\nFROM external_status.active_incidents AS incident\nJOIN external_status.sources AS source ON source.id = incident.provider_id\nWHERE source.enabled\nORDER BY incident.provider_updated_at DESC;"
+                        "rawSql": "SELECT\n    source.name AS \"Provider\",\n    incident.title AS \"Incident\",\n    incident.lifecycle AS \"Lifecycle\",\n    incident.impact AS \"Impact\",\n    incident.started_at AS \"Started\",\n    incident.provider_updated_at AS \"Updated\",\n    incident.source_url AS \"Source\"\nFROM external_status.active_incidents AS incident\nJOIN external_status.sources AS source ON source.id = incident.provider_id\nORDER BY incident.provider_updated_at DESC;"
                       }
                     }
                   }
@@ -705,24 +705,6 @@
                         "value": "dateTimeAsLocal"
                       }
                     ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Source"
-                    },
-                    "properties": [
-                      {
-                        "id": "links",
-                        "value": [
-                          {
-                            "title": "Open provider status",
-                            "url": "${__value.raw}",
-                            "targetBlank": true
-                          }
-                        ]
-                      }
-                    ]
                   }
                 ]
               },
@@ -753,7 +735,7 @@
         "spec": {
           "id": 6,
           "title": "Poll reliability",
-          "description": "Collector success rate during the selected dashboard range. Manual sources record attempts to read vendor reports, not network probes. Missing credentials appear as failed authenticated collection.",
+          "description": "Collector success rate during the selected dashboard range.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -878,7 +860,7 @@
         "spec": {
           "id": 7,
           "title": "Provider state timeline",
-          "description": "Provider condition over the selected time range. Numeric values are mapped back to normalized service states. Rows represent successful observations only; gaps and current freshness must be checked in provider state.",
+          "description": "Provider condition over the selected time range. Numeric values are mapped back to normalized service states.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -1034,7 +1016,7 @@
                         "editorMode": "code",
                         "format": "table",
                         "rawQuery": true,
-                        "rawSql": "SELECT\n    source.name AS \"Provider\",\n    component.name AS \"Component\",\n    component.current_status AS \"Status\",\n    component.provider_updated_at AS \"Provider updated\"\nFROM external_status.components AS component\nJOIN external_status.sources AS source ON source.id = component.provider_id\nWHERE source.enabled AND component.active\n  AND component.provider_id ~ '^${provider:regex}$'\nORDER BY source.name, component.name;"
+                        "rawSql": "SELECT\n    source.name AS \"Provider\",\n    component.name AS \"Component\",\n    component.current_status AS \"Status\",\n    component.provider_updated_at AS \"Provider updated\"\nFROM external_status.components AS component\nJOIN external_status.sources AS source ON source.id = component.provider_id\nWHERE component.active\n  AND component.provider_id ~ '^${provider:regex}$'\nORDER BY source.name, component.name;"
                       }
                     }
                   }

@@ -35,6 +35,16 @@ Repository reference: refs/heads/main
 Compose path: deploy/portainer/combinator.yaml
 ```
 
+Use your existing repository containing the merged changes. No fork is required.
+After merging fixes, pull and redeploy the Git stack and rebuild its local image;
+restarting an existing container keeps its embedded migrations unchanged.
+
+If migration 2 fails with `column "dependency" ... already exists` after manually
+running schema SQL, the repaired migration uses `ADD COLUMN IF NOT EXISTS` and
+`CREATE OR REPLACE VIEW`. It preserves existing rows and values and completes the
+missing schema changes. Deploy the repaired image; no manual deletion is needed.
+
+
 The relative build context in the stack requires repository deployment; do not
 paste only the YAML into the web editor. Portainer checks out the repository
 and builds the multi-stage `Dockerfile` locally on the Docker host.
