@@ -1,3 +1,6 @@
+mod public;
+mod telenor;
+mod telia;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
@@ -152,6 +155,8 @@ impl Collector for CustomCollector {
     async fn collect(&self, source: &SourceConfig) -> Result<ObservationBatch, CollectorError> {
         let url = match &source.collector {
             CollectorConfig::MicrosoftGraph => return self.graph(source).await,
+            CollectorConfig::Telia { url } => return telia::collect(self, source, url).await,
+            CollectorConfig::Telenor { url } => return telenor::collect(self, source, url).await,
             CollectorConfig::Manual { path } => {
                 let file = std::fs::File::open(path)?;
                 use std::io::Read;
@@ -167,10 +172,23 @@ impl Collector for CustomCollector {
             | CollectorConfig::Salesforce { url }
             | CollectorConfig::Slack { url }
             | CollectorConfig::Meta { url }
-            | CollectorConfig::Feed { url } => url,
+            | CollectorConfig::Feed { url }
+            | CollectorConfig::MicrosoftPublic { url }
+            | CollectorConfig::Freshstatus { url }
+            | CollectorConfig::Instatus { url }
+            | CollectorConfig::Adyen { url }
+            | CollectorConfig::Zendesk { url }
+            | CollectorConfig::Pipedrive { url }
+            | CollectorConfig::PublicNotice { url } => url,
             _ => return Err(CollectorError::Unsupported(source.id.clone())),
         };
-        let body = self.body(self.client.get(url.clone())).await?;
+        let mut endpoint = url.clone();
+        if matches!(source.collector, CollectorConfig::Zendesk { .. }) {
+            endpoint
+                .query_pairs_mut()
+                .append_pair("as_of_date", &Utc::now().format("%Y-%m-%d").to_string());
+        }
+        let body = self.body(self.client.get(endpoint)).await?;
         parse(source, &body)
     }
 }
@@ -253,6 +271,18 @@ pub(super) fn parse(
     source: &SourceConfig,
     body: &[u8],
 ) -> Result<ObservationBatch, CollectorError> {
+    if matches!(
+        source.collector,
+        CollectorConfig::MicrosoftPublic { .. }
+            | CollectorConfig::Freshstatus { .. }
+            | CollectorConfig::Instatus { .. }
+            | CollectorConfig::Adyen { .. }
+            | CollectorConfig::Zendesk { .. }
+            | CollectorConfig::Pipedrive { .. }
+            | CollectorConfig::PublicNotice { .. }
+    ) {
+        return public::parse(source, body);
+    }
     if matches!(source.collector, CollectorConfig::Feed { .. }) {
         return parse_rss(source, body);
     }
@@ -552,6 +582,7 @@ fn parse_rss(source: &SourceConfig, body: &[u8]) -> Result<ObservationBatch, Col
         if lower.contains("[resolved]")
             || lower.starts_with("resolved:")
             || lower.starts_with("resolved -")
+            || lower.starts_with("korjattu:")
         {
             continue;
         }

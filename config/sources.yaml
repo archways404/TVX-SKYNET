@@ -158,15 +158,16 @@ sources:
   # Coverage checked against public endpoints on 2026-11-16.
 
   - id: microsoft
-    name: "Microsoft 365 / Graph / Teams"
+    name: "Microsoft 365 (public advisories)"
     category: customer-critical
     metadata:
-      dependency: "Teams presence, Microsoft contacts/calendar, Direct Routing and SSO"
-      coverage: "Tenant service health requires app credentials and ServiceHealth.Read.All; public pages cannot prove tenant health."
+      dependency: "Microsoft contacts, calendars, Teams integrations and SSO"
+      coverage: "Public emergency advisories only; no tenant credentials needed. Does not replace tenant-specific Graph service health."
       status_url: "https://status.cloud.microsoft/"
       domain: "microsoft.com"
     collector:
-      type: microsoft_graph
+      type: microsoft_public
+      url: https://status.cloud.microsoft/api/posts/mac
 
   - id: azure
     name: "Microsoft Azure (public advisories)"
@@ -257,17 +258,18 @@ sources:
       base_url: https://status.bankid.com/
 
   - id: freja
-    name: "Freja eID"
+    name: "Freja eID (via Signicat)"
     category: customer-critical
-    stale_after: 24h
     metadata:
-      dependency: "Sign-in and identity verification"
-      coverage: "Manual report; no verified public machine-readable feed."
-      status_url: "https://frejaeid.com/en/support/"
+      dependency: "Identity verification and sign-in"
+      coverage: "Automatic Signicat Freja eID component; third-party integration coverage, not a direct Freja-wide service guarantee."
+      status_url: "https://status.signicat.com/"
       domain: "frejaeid.com"
     collector:
-      type: manual
-      path: /app/manual/status.json
+      type: statuspage
+      base_url: https://status.signicat.com/
+    include_components:
+      - "Freja eID"
 
   - id: salesforce
     name: "Salesforce"
@@ -284,28 +286,26 @@ sources:
   - id: zendesk
     name: "Zendesk"
     category: crm
-    stale_after: 24h
     metadata:
-      dependency: "Browser CTI for Zendesk customers"
-      coverage: "Manual report; the proposed Statuspage endpoint returned 404."
+      dependency: "CTI integration for Zendesk customers"
+      coverage: "Automatic public incident JSON; global announcements may not affect every customer pod."
       status_url: "https://status.zendesk.com/"
       domain: "zendesk.com"
     collector:
-      type: manual
-      path: /app/manual/status.json
+      type: zendesk
+      url: https://status.zendesk.com/api/ssp/incidents.json
 
   - id: freshdesk
-    name: "Freshdesk / Freshworks"
+    name: "Freshdesk"
     category: crm
-    stale_after: 24h
     metadata:
-      dependency: "Browser CTI for Freshdesk customers"
-      coverage: "Manual report; proposed Statuspage URLs redirect, return HTML or block requests."
+      dependency: "CTI integration for Freshdesk customers"
+      coverage: "Public Freshdesk component API across regions. Component state; provider page has incident narratives."
       status_url: "https://status.freshworks.com/"
       domain: "freshworks.com"
     collector:
-      type: manual
-      path: /app/manual/status.json
+      type: freshstatus
+      url: https://public-api.freshstatus.io/v1/public-components/?account_id=3611
 
   - id: teamleader
     name: "Teamleader"
@@ -334,15 +334,14 @@ sources:
   - id: pipedrive
     name: "Pipedrive"
     category: crm
-    stale_after: 24h
     metadata:
-      dependency: "Browser CTI for Pipedrive customers"
-      coverage: "Manual report; no verified unauthenticated JSON endpoint."
+      dependency: "CTI integration for Pipedrive customers"
+      coverage: "Automatic public component and current-notice HTML parsing; changed markup fails collection."
       status_url: "https://status.pipedrive.com/"
       domain: "pipedrive.com"
     collector:
-      type: manual
-      path: /app/manual/status.json
+      type: pipedrive
+      url: https://status.pipedrive.com/
 
   - id: superoffice
     name: "SuperOffice"
@@ -375,15 +374,14 @@ sources:
   - id: adyen
     name: "Adyen"
     category: second-tier
-    stale_after: 24h
     metadata:
       dependency: "Checkout payments"
-      coverage: "Manual report; proposed Statuspage URL returns HTML rather than JSON."
+      coverage: "Automatic public active incident API; no tenant or merchant credentials."
       status_url: "https://status.adyen.com/"
       domain: "adyen.com"
     collector:
-      type: manual
-      path: /app/manual/status.json
+      type: adyen
+      url: https://status.adyen.com/api/incident-messages/active
 
   - id: mapbox
     name: "Mapbox"
@@ -426,15 +424,14 @@ sources:
   - id: spirius
     name: "Spirius"
     category: second-tier
-    stale_after: 24h
     metadata:
-      dependency: "Finland SMS gateway"
-      coverage: "Manual report; no verified public status feed."
-      status_url: ""
+      dependency: "Finland SMS delivery"
+      coverage: "Official public Instatus API."
+      status_url: "https://spirius.instatus.com/"
       domain: "spirius.com"
     collector:
-      type: manual
-      path: /app/manual/status.json
+      type: instatus
+      url: https://spirius.instatus.com/v3/summary.json
 
   - id: slack
     name: "Slack"
@@ -485,92 +482,87 @@ sources:
       base_url: https://jira-service-management.status.atlassian.com/
 
   - id: telia
-    name: "Telia"
+    name: "Telia (Sweden fixed network)"
     category: carriers
-    stale_after: 24h
+    request_timeout: 60s
     metadata:
-      dependency: "Carrier connectivity and customer calling"
-      coverage: "Manual vendor-confirmed report; no verified pollable status API."
-      status_url: ""
-      domain: ""
+      dependency: "Carrier connectivity and customer calls"
+      coverage: "Official public fixed-network county and case tables for broadband, IP telephony and TV. Regional cases do not establish a nationwide or mobile outage; county associations follow map viewports."
+      status_url: "https://www.telia.se/support/driftinformation-fast"
+      domain: "telia.se"
     collector:
-      type: manual
-      path: /app/manual/status.json
+      type: telia
+      url: https://glu2.han.telia.se/bios/glup
 
   - id: telenor
-    name: "Telenor"
+    name: "Telenor (Sweden fixed network)"
     category: carriers
-    stale_after: 24h
+    request_timeout: 60s
     metadata:
-      dependency: "Carrier connectivity and customer calling"
-      coverage: "Manual vendor-confirmed report; no verified pollable status API."
-      status_url: ""
-      domain: ""
+      dependency: "Carrier connectivity and customer calls"
+      coverage: "Official public fixed-network outage portal. Local broadband/TV/telephony cases; no nationwide or mobile health guarantee. County associations follow map viewports."
+      status_url: "https://mboss.telenor.se/outageportalfixed/"
+      domain: "telenor.se"
     collector:
-      type: manual
-      path: /app/manual/status.json
+      type: telenor
+      url: https://mboss.telenor.se/outageportalfixed/
 
   - id: tdc
     name: "TDC"
     category: carriers
-    stale_after: 24h
     metadata:
-      dependency: "Carrier connectivity and customer calling"
-      coverage: "Manual vendor-confirmed report; no verified pollable status API."
-      status_url: ""
-      domain: ""
+      dependency: "Carrier connectivity and customer calls"
+      coverage: "Automatic public page retrieval. No verified global network-health signal; remains Unknown. Location/account-specific outages require provider access."
+      status_url: "https://tdc.dk/"
+      domain: "tdc.dk"
     collector:
-      type: manual
-      path: /app/manual/status.json
+      type: public_notice
+      url: https://tdc.dk/
 
   - id: telia-dk
-    name: "Telia DK"
+    name: "Telia DK / Norlys"
     category: carriers
-    stale_after: 24h
     metadata:
-      dependency: "Carrier connectivity and customer calling"
-      coverage: "Manual vendor-confirmed report; no verified pollable status API."
-      status_url: ""
-      domain: ""
+      dependency: "Carrier connectivity and customer calls"
+      coverage: "Automatic public page retrieval. No verified global network-health signal; remains Unknown. Location/account-specific outages require provider access."
+      status_url: "https://norlys.dk/"
+      domain: "norlys.dk"
     collector:
-      type: manual
-      path: /app/manual/status.json
+      type: public_notice
+      url: https://norlys.dk/
 
   - id: proximus
     name: "Proximus"
     category: carriers
-    stale_after: 24h
     metadata:
-      dependency: "Carrier connectivity and customer calling"
-      coverage: "Manual vendor-confirmed report; no verified pollable status API."
-      status_url: ""
-      domain: ""
+      dependency: "Carrier connectivity and customer calls"
+      coverage: "Automatic public page retrieval. No verified global network-health signal; remains Unknown. Location/account-specific outages require provider access."
+      status_url: "https://www.proximus.be/"
+      domain: "proximus.be"
     collector:
-      type: manual
-      path: /app/manual/status.json
+      type: public_notice
+      url: https://www.proximus.be/
 
   - id: line-carrier
     name: "Line Carrier"
     category: carriers
-    stale_after: 24h
     metadata:
-      dependency: "Carrier connectivity and customer calling"
-      coverage: "Manual vendor-confirmed report; no verified pollable status API."
-      status_url: ""
-      domain: ""
+      dependency: "Carrier connectivity and customer calls"
+      coverage: "Official Finnish incident RSS; Korjattu titles are resolved. Other bulletins remain active advisories."
+      status_url: "https://www.linecarrier.fi/hairiotiedotteet/"
+      domain: "linecarrier.fi"
     collector:
-      type: manual
-      path: /app/manual/status.json
+      type: feed
+      url: https://www.linecarrier.fi/hairiotiedotteet/feed/
 
   - id: erate
     name: "Erate"
     category: carriers
-    stale_after: 24h
     metadata:
-      dependency: "Carrier connectivity and customer calling"
-      coverage: "Manual vendor-confirmed report; no verified pollable status API."
-      status_url: ""
-      domain: ""
+      dependency: "Carrier connectivity and customer calls"
+      coverage: "Automatic public page retrieval. No verified global network-health signal; remains Unknown. Location/account-specific outages require provider access."
+      status_url: "https://www.erate.no/"
+      domain: "erate.no"
     collector:
-      type: manual
-      path: /app/manual/status.json
+      type: public_notice
+      url: https://www.erate.no/

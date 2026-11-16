@@ -9,6 +9,7 @@ async-trait = "0.1"
 axum = { version = "0.8", features = ["http1", "json", "tokio"] }
 chrono = { version = "0.4", features = ["serde"] }
 humantime-serde = "1.1"
+scraper = "0.24"
 roxmltree = "0.20"
 reqwest = { version = "0.12", default-features = false, features = ["http2", "json", "rustls-tls"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -22,3 +23,4 @@ tower-http = { version = "0.6", features = ["compression-gzip", "request-id", "t
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
 url = { version = "2.5", features = ["serde"] }
+chrono-tz = "0.10"

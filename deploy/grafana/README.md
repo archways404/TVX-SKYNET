@@ -42,16 +42,15 @@ Use **[tvx-skynet-dashboard-v2.json](tvx-skynet-dashboard-v2.json)** for the sup
 Grafana v2 installation. It preserves dashboard identity
 `tvx-skynet-external-status` and PostgreSQL datasource UID `dg46qijl86fi8d`.
 The original `tvx-skynet-dashboard.json` remains a v1 import with datasource mapping.
-Both exports include the same 11 panels: the existing eight plus a customer-critical
-summary, a dependency coverage table, and a reading guide. Provider metadata drives
+Both exports include the same 11 panels, including coverage gaps, dependency
+coverage and a reading guide. The customer-critical summary has been removed. Provider metadata drives
 logos, categories and coverage, so new rows need no hard-coded dashboard edits.
 
 Rebuild/redeploy the collector **before** importing either updated export: the
 queries require migration `0002_source_coverage.sql` and new source initialization.
 The dashboard queries stored PostgreSQL observations; importing JSON alone does
-not add collection. Unknown manual and unauthenticated Microsoft rows are expected
-until configured. See [source setup](../../config/README.md) for Microsoft app
-credentials, manual reports and provider coverage limits.
+not add collection. No default source requires manual reporting or Microsoft
+tenant credentials. See [source setup](../../config/README.md) for provider coverage limits.
 
 To regenerate the v2 export after editing the maintained v1 file:
 
@@ -69,8 +68,8 @@ is known. No live Grafana import or PostgreSQL migration was performed locally.
 ## Responsive layout and migration recovery
 
 The v2 export uses responsive AutoGrid rows. **Issues now** lists each provider,
-affected service and exact incident title, ordered by severity. Missing manual
-reports and collection failures remain visible in **All providers**. Detailed
+affected service and exact incident title, ordered by severity. Coverage gaps
+and collection failures remain visible in **Provider health**. Detailed
 incident, history and coverage sections start collapsed.
 
 The generator converts classic null base thresholds to numeric zero because this
@@ -96,3 +95,30 @@ node scripts/check-migrations.mjs /tmp/skynet-migration-test/node_modules/@elect
 The regression check covers fresh, partially manual and fully manual schema
 setups, preserves existing values, executes dashboard SQL, and verifies both
 Claude example incidents appear with their affected services.
+
+
+## Compact dashboard and automatic-source defaults
+
+The current v2 export has 11 panels. It removes the customer-critical Unknown
+card, uses compact custom row heights with responsive widths, gives incidents a
+full-width table with wrapped titles, and adds provider icons plus a short
+**Used for** description. Operational collection is separated from the coverage
+count; the four carrier information-only checks remain explicit coverage gaps.
+No default source needs a manual report or Microsoft tenant ID.
+
+The three metadata panels now read the already-accessible `external_status.sources`
+table, so importing the new export does not need a new grant on `source_catalog`.
+For the older export, its immediate permission fix is:
+
+```sql
+GRANT USAGE ON SCHEMA external_status TO your_grafana_db_user;
+GRANT SELECT ON external_status.source_catalog TO your_grafana_db_user;
+```
+
+Poll percentages have a fixed 0–100 scale with colored text. Component rows group
+identical provider/component names and show their reported instance count. The
+history connects asynchronous samples and inserts Unknown at stale gaps.
+
+No extra Portainer stack is needed. Rebuild/redeploy the existing combinator, then
+apply the regenerated v2 JSON in Grafana and save. Its datasource UID remains
+`dg46qijl86fi8d` and dashboard identity remains `tvx-skynet-external-status`.

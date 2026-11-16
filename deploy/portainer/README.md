@@ -137,3 +137,13 @@ TLS mode: disable (only if the connection stays on the trusted LAN)
 
 The password and complete `DATABASE_URL` belong in Portainer's environment or
 secret management, not in a YAML file committed to Git.
+
+
+## Automatic provider monitoring
+
+The default 41-source configuration needs only the existing combinator stack.
+No changedetection, RSS-Bridge or browser stack is required by these collectors.
+Microsoft uses its public page data and needs no tenant ID. Telia and Telenor
+collect actual public fixed-network cases. Four remaining carrier pages
+provide information-only coverage: their network health remains unknown.
+See [source coverage](../../config/README.md) for the exact limits.

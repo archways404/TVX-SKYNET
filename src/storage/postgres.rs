@@ -81,6 +81,7 @@ impl PostgresStore {
             .bind(&source.metadata.domain)
             .bind(match source.collector {
                 CollectorConfig::Manual { .. } => "manual",
+                CollectorConfig::PublicNotice { .. } => "public_advisory",
                 CollectorConfig::MicrosoftGraph => "authenticated",
                 _ => "automatic",
             })

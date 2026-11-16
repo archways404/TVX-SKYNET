@@ -6,8 +6,8 @@ The current build includes:
 
 - Rust/Tokio polling engine with bounded concurrency and per-source timeouts.
 - Statuspage, Google, Apple, Meta, Salesforce, Slack and RSS advisory collectors.
-- 41 configured providers: 27 public feeds, Microsoft tenant health with app
-  credentials, and 13 manual sources including carriers.
+- 41 automatic sources: 37 public health/incident sources and four carrier
+  information pages with explicitly limited coverage. No tenant ID is required.
 - Component filtering and normalized service/incident states.
 - In-memory and PostgreSQL status stores behind one storage trait.
 - Read-only Axum API and health endpoints.

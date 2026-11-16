@@ -32,20 +32,23 @@ for panel in source['panels']:
 rows = []
 # AutoGrid responds to the available width; incident text receives its own row.
 for title, ids, columns, height, collapsed in [
-    ('Overview', [1, 11], 2, 'short', False),
-    ('Issues now', [2], 1, 'tall', False),
-    ('Provider state and collection', [4, 6], 2, 'tall', False),
-    ('Incident details', [5], 1, 'tall', True),
-    ('History', [7], 1, 'tall', True),
-    ('Components and poll details', [8, 9], 2, 'tall', True),
-    ('Coverage and reading guide', [10, 12], 1, 'tall', True),
+    ('Overview', [1, 13], 2, 100, False),
+    ('Current incidents', [2], 1, 230, False),
+    ('Provider health', [4], 1, 320, False),
+    ('Collection reliability', [6], 1, 260, True),
+    ('Incident details', [5], 1, 230, True),
+    ('History', [7], 1, 360, True),
+    ('Components', [8], 1, 300, True),
+    ('Poll details', [9], 1, 260, True),
+    ('Coverage', [10], 1, 280, True),
+    ('Reading guide', [12], 1, 100, True),
 ]:
     items = [{'kind': 'AutoGridLayoutItem', 'spec': {'element': {
         'kind': 'ElementReference', 'name': f'panel-{panel_id}'}}} for panel_id in ids]
     rows.append({'kind': 'RowsLayoutRow', 'spec': {'title': title, 'collapse': collapsed,
         'layout': {'kind': 'AutoGridLayout', 'spec': {
-            'maxColumnCount': columns, 'columnWidthMode': 'wide',
-            'rowHeightMode': height, 'fillScreen': False, 'items': items}}}})
+            'maxColumnCount': columns, 'columnWidthMode': 'standard',
+            'rowHeightMode': 'custom', 'rowHeight': height, 'fillScreen': False, 'items': items}}}})
 variables = []
 for variable in source['templating']['list']:
     spec = copy.deepcopy(variable)

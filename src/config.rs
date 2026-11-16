@@ -88,6 +88,15 @@ pub enum CollectorConfig {
     Slack { url: Url },
     Meta { url: Url },
     MicrosoftGraph,
+    MicrosoftPublic { url: Url },
+    Telia { url: Url },
+    Telenor { url: Url },
+    Freshstatus { url: Url },
+    Instatus { url: Url },
+    Adyen { url: Url },
+    Zendesk { url: Url },
+    Pipedrive { url: Url },
+    PublicNotice { url: Url },
     Manual { path: std::path::PathBuf },
 }
 

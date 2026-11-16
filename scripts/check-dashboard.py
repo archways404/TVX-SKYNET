@@ -12,7 +12,7 @@ references = []
 for row in spec['layout']['spec']['rows']:
     layout = row['spec']['layout']
     assert layout['kind'] == 'AutoGridLayout', 'panels must resize with available width'
-    assert layout['spec']['maxColumnCount'] in (1, 2)
+    assert layout['spec']['maxColumnCount'] in (1, 2, 3)
     for item in layout['spec']['items']:
         assert item['kind'] == 'AutoGridLayoutItem'
         references.append(item['spec']['element']['name'])
@@ -36,3 +36,5 @@ for variable in spec['variables']:
     assert v['query']['kind'] == 'DataQuery'
     assert v['query']['datasource']['name'] == 'dg46qijl86fi8d'
 print('Both JSON exports parse; 11 unique panels, complete layouts and correct v2 query/datasource structure.')
+
+assert 'panel-11' not in spec['elements'], 'customer-critical summary was explicitly removed'

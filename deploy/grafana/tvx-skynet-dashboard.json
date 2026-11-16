@@ -25,7 +25,7 @@
       }
     ]
   },
-  "description": "SOC view of external provider status, active incidents, component state, and collector health.",
+  "description": "SOC view of automatically collected public provider status, current incidents, service usage and collection coverage.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -38,7 +38,7 @@
         "type": "grafana-postgresql-datasource",
         "uid": "${DS_TVX_SKYNET}"
       },
-      "description": "Worst effective state across all enabled external providers. Stale providers are treated as unknown.",
+      "description": "Worst reported state among public service-health feeds. Providers publishing only unscoped public information are counted separately under Coverage gaps.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -115,9 +115,9 @@
       },
       "id": 1,
       "options": {
-        "colorMode": "background",
+        "colorMode": "value",
         "graphMode": "none",
-        "justifyMode": "center",
+        "justifyMode": "left",
         "orientation": "horizontal",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
@@ -128,7 +128,7 @@
           "values": false
         },
         "showPercentChange": false,
-        "textMode": "value_and_name",
+        "textMode": "value",
         "wideLayout": true
       },
       "pluginVersion": "12.0.0",
@@ -141,7 +141,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n    COALESCE(MAX(CASE effective_status\n        WHEN 'operational' THEN 0\n        WHEN 'maintenance' THEN 1\n        WHEN 'unknown' THEN 2\n        WHEN 'degraded' THEN 3\n        WHEN 'partial_outage' THEN 4\n        WHEN 'major_outage' THEN 5\n        ELSE 2\n    END), 2) AS \"External dependency status\"\nFROM external_status.provider_current;",
+          "rawSql": "WITH reported_status AS (\n SELECT p.effective_status AS status FROM external_status.provider_current p\n JOIN external_status.sources s USING (id)\n WHERE s.collection_mode NOT IN ('manual', 'public_advisory')\n    OR (NOT p.stale AND p.effective_status <> 'unknown')\n UNION ALL\n SELECT i.impact AS status FROM external_status.active_incidents i\n JOIN external_status.sources s ON s.id = i.provider_id\n WHERE s.enabled AND s.collection_mode <> 'public_advisory'\n)\nSELECT COALESCE(MAX(CASE status WHEN 'operational' THEN 0 WHEN 'maintenance' THEN 1\n WHEN 'unknown' THEN 2 WHEN 'degraded' THEN 3 WHEN 'partial_outage' THEN 4\n WHEN 'major_outage' THEN 5 ELSE 2 END), 2) AS \"Monitored service health\" FROM reported_status;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -162,7 +162,7 @@
           }
         }
       ],
-      "title": "External dependency status",
+      "title": "Monitored service health",
       "type": "stat"
     },
     {
@@ -170,7 +170,7 @@
         "type": "grafana-postgresql-datasource",
         "uid": "${DS_TVX_SKYNET}"
       },
-      "description": "One row per unresolved provider incident, with the affected service and exact incident title. Provider outages without a published incident get an explicit summary. Unreported manual sources and collector failures are shown in provider state below.",
+      "description": "One row per unresolved provider incident, with the affected service and exact incident title. Provider outages without a published incident get an explicit summary. Limited public coverage and collector failures are shown in provider state below.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -279,6 +279,10 @@
               {
                 "id": "custom.width",
                 "value": 140
+              },
+              {
+                "id": "custom.hidden",
+                "value": true
               }
             ]
           },
@@ -290,7 +294,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 150
+                "value": 130
               }
             ]
           },
@@ -302,7 +306,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 220
+                "value": 190
               },
               {
                 "id": "custom.wrapText",
@@ -319,6 +323,16 @@
               {
                 "id": "custom.wrapText",
                 "value": true
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open provider incident",
+                    "url": "${__data.fields.Source}",
+                    "targetBlank": true
+                  }
+                ]
               }
             ]
           },
@@ -331,6 +345,10 @@
               {
                 "id": "custom.width",
                 "value": 130
+              },
+              {
+                "id": "custom.hidden",
+                "value": true
               }
             ]
           }
@@ -344,7 +362,7 @@
       },
       "id": 2,
       "options": {
-        "cellHeight": "md",
+        "cellHeight": "sm",
         "footer": {
           "countRows": false,
           "fields": "",
@@ -354,7 +372,8 @@
           "show": false
         },
         "showHeader": true,
-        "sortBy": []
+        "sortBy": [],
+        "enablePagination": true
       },
       "pluginVersion": "12.0.0",
       "targets": [
@@ -366,11 +385,11 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH issues AS (\n    SELECT\n        provider.name AS \"Provider\",\n        COALESCE(affected.names, 'Provider-wide / not specified') AS \"Affected service\",\n        COALESCE(incident.title, 'Provider reports ' || replace(provider.effective_status, '_', ' ')) AS \"Issue\",\n        COALESCE(incident.impact, provider.effective_status) AS \"Impact\",\n        COALESCE(incident.lifecycle, 'provider_status') AS \"Stage\",\n        COALESCE(incident.provider_updated_at, provider.last_success_at) AS \"Updated\",\n        COALESCE(incident.source_url, NULLIF(catalog.status_url, '')) AS \"Source\"\n    FROM external_status.provider_current AS provider\n    JOIN external_status.source_catalog AS catalog ON catalog.id = provider.id\n    LEFT JOIN external_status.active_incidents AS incident ON incident.provider_id = provider.id\n    LEFT JOIN LATERAL (\n        SELECT string_agg(component.name, ', ' ORDER BY component.name) AS names\n        FROM external_status.components AS component\n        WHERE component.provider_id = provider.id\n          AND component.active\n          AND ((incident.external_id IS NOT NULL AND component.external_id = ANY(incident.affected_component_ids))\n               OR (incident.external_id IS NULL AND component.current_status IN ('degraded', 'partial_outage', 'major_outage', 'maintenance')))\n    ) AS affected ON TRUE\n    WHERE incident.external_id IS NOT NULL\n       OR provider.effective_status IN ('degraded', 'partial_outage', 'major_outage', 'maintenance')\n), display_rows AS (\n    SELECT * FROM issues\n    UNION ALL\n    SELECT 'All providers', ''::text, 'No reported service incidents', 'operational', ''::text, NULL::timestamptz, NULL::text\n    WHERE NOT EXISTS (SELECT 1 FROM issues)\n)\nSELECT * FROM display_rows\nORDER BY CASE \"Impact\" WHEN 'major_outage' THEN 5 WHEN 'partial_outage' THEN 4 WHEN 'degraded' THEN 3\n    WHEN 'unknown' THEN 2 WHEN 'maintenance' THEN 1 ELSE 0 END DESC, \"Provider\", \"Updated\" DESC;",
+          "rawSql": "WITH issues AS (\n    SELECT\n        provider.name AS \"Provider\",\n        COALESCE(affected.names, 'Provider-wide / not specified') AS \"Affected service\",\n        COALESCE(incident.title, 'Provider reports ' || replace(provider.effective_status, '_', ' ')) AS \"Issue\",\n        COALESCE(incident.impact, provider.effective_status) AS \"Impact\",\n        COALESCE(incident.lifecycle, 'provider_status') AS \"Stage\",\n        COALESCE(incident.provider_updated_at, provider.last_success_at) AS \"Updated\",\n        COALESCE(incident.source_url, NULLIF(catalog.status_url, '')) AS \"Source\"\n    FROM external_status.provider_current AS provider\n    JOIN external_status.sources AS catalog ON catalog.id = provider.id\n    LEFT JOIN external_status.active_incidents AS incident ON incident.provider_id = provider.id\n    LEFT JOIN LATERAL (\n        SELECT string_agg(component.name, ', ' ORDER BY component.name) AS names\n        FROM external_status.components AS component\n        WHERE component.provider_id = provider.id\n          AND component.active\n          AND ((incident.external_id IS NOT NULL AND component.external_id = ANY(incident.affected_component_ids))\n               OR (incident.external_id IS NULL AND component.current_status IN ('degraded', 'partial_outage', 'major_outage', 'maintenance')))\n    ) AS affected ON TRUE\n    WHERE incident.external_id IS NOT NULL\n       OR provider.effective_status IN ('degraded', 'partial_outage', 'major_outage', 'maintenance')\n), display_rows AS (\n    SELECT * FROM issues\n    UNION ALL\n    SELECT 'All providers', ''::text, 'No reported service incidents', 'operational', ''::text, NULL::timestamptz, NULL::text\n    WHERE NOT EXISTS (SELECT 1 FROM issues)\n)\nSELECT * FROM display_rows\nORDER BY CASE \"Impact\" WHEN 'major_outage' THEN 5 WHEN 'partial_outage' THEN 4 WHEN 'degraded' THEN 3\n    WHEN 'unknown' THEN 2 WHEN 'maintenance' THEN 1 ELSE 0 END DESC, \"Provider\", \"Updated\" DESC;",
           "refId": "A"
         }
       ],
-      "title": "Issues now \u2014 provider, service and incident",
+      "title": "Current incidents",
       "type": "table"
     },
     {
@@ -451,38 +470,100 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Stale"
+              "options": "Last checked"
             },
             "properties": [
               {
-                "id": "mappings",
-                "value": [
-                  {
-                    "options": {
-                      "false": {
-                        "color": "green",
-                        "text": "Fresh"
-                      },
-                      "true": {
-                        "color": "red",
-                        "text": "Stale"
-                      }
-                    },
-                    "type": "value"
-                  }
-                ]
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              },
+              {
+                "id": "custom.width",
+                "value": 180
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "Last successful poll"
+              "options": "Detail"
             },
             "properties": [
               {
-                "id": "unit",
-                "value": "dateTimeAsLocal"
+                "id": "custom.wrapText",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Icon"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "image",
+                  "altText": "Provider logo",
+                  "titleText": "Provider logo"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 44
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Provider"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 190
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Used for"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 310
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 125
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Collection"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 145
               }
             ]
           }
@@ -506,7 +587,8 @@
           "show": false
         },
         "showHeader": true,
-        "sortBy": []
+        "sortBy": [],
+        "enablePagination": true
       },
       "pluginVersion": "12.0.0",
       "targets": [
@@ -518,11 +600,11 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n    name AS \"Provider\",\n    category AS \"Category\",\n    effective_status AS \"Status\",\n    stale AS \"Stale\",\n    last_success_at AS \"Last successful poll\",\n    consecutive_failures AS \"Failures\",\n    COALESCE(last_error, '') AS \"Last error\"\nFROM external_status.provider_current\nORDER BY name;",
+          "rawSql": "SELECT CASE WHEN c.domain <> '' THEN 'https://www.google.com/s2/favicons?domain_url=https://' || c.domain || '&sz=64' END AS \"Icon\",\n    p.name AS \"Provider\", c.dependency AS \"Used for\", p.effective_status AS \"Status\",\n    CASE WHEN c.collection_mode = 'manual' AND p.last_success_at IS NULL THEN 'Awaiting report'\n         WHEN c.collection_mode = 'manual' AND p.stale THEN 'Report expired'\n         WHEN p.last_success_at IS NULL THEN 'Not checked'\n         WHEN p.stale THEN 'Stale'\n         WHEN p.consecutive_failures > 0 THEN 'Poll failing'\n         WHEN c.collection_mode = 'public_advisory' THEN 'Public info only'\n         ELSE 'Fresh' END AS \"Collection\",\n    p.last_success_at AS \"Last checked\", COALESCE(p.last_error, CASE WHEN c.collection_mode = 'public_advisory' THEN c.coverage ELSE '' END) AS \"Detail\"\nFROM external_status.provider_current p JOIN external_status.sources c USING (id)\nORDER BY CASE p.effective_status WHEN 'major_outage' THEN 5 WHEN 'partial_outage' THEN 4\n WHEN 'degraded' THEN 3 WHEN 'unknown' THEN 2 WHEN 'maintenance' THEN 1 ELSE 0 END DESC, p.name;",
           "refId": "A"
         }
       ],
-      "title": "All providers \u2014 status and collection gaps",
+      "title": "Provider health",
       "type": "table"
     },
     {
@@ -615,6 +697,198 @@
                 "value": "dateTimeAsLocal"
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Incident"
+            },
+            "properties": [
+              {
+                "id": "custom.wrapText",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Provider"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Lifecycle"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 125
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Impact"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 125
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Started"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 175
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Updated"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 175
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Source"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Incident"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Provider updates",
+                    "url": "${__data.fields.Source}",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Provider"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Lifecycle"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Impact"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 125
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Started"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 185
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Updated"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 185
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Source"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Incident"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Provider updates",
+                    "url": "${__data.fields.Source}",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
           }
         ]
       },
@@ -641,7 +915,8 @@
             "desc": true,
             "displayName": "Updated"
           }
-        ]
+        ],
+        "enablePagination": true
       },
       "pluginVersion": "12.0.0",
       "targets": [
@@ -665,7 +940,7 @@
         "type": "grafana-postgresql-datasource",
         "uid": "${DS_TVX_SKYNET}"
       },
-      "description": "Collector success rate during the selected dashboard range.",
+      "description": "Network/API collector success during the selected range. Manual reports are excluded. Success rates use a fixed 0\u2013100% scale.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -710,10 +985,17 @@
                 "value": 1
               },
               {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              },
+              {
                 "id": "custom.cellOptions",
                 "value": {
-                  "mode": "gradient",
-                  "type": "gauge"
+                  "type": "color-text"
                 }
               }
             ]
@@ -750,7 +1032,8 @@
           "show": false
         },
         "showHeader": true,
-        "sortBy": []
+        "sortBy": [],
+        "enablePagination": true
       },
       "pluginVersion": "12.0.0",
       "targets": [
@@ -762,11 +1045,11 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n    source_id AS \"Source\",\n    COUNT(*) AS \"Checks\",\n    ROUND(100.0 * AVG(CASE WHEN succeeded THEN 1.0 ELSE 0.0 END), 1) AS \"Success rate\",\n    MAX(checked_at) AS \"Last check\"\nFROM external_status.poll_attempts\nWHERE $__timeFilter(checked_at)\nGROUP BY source_id\nORDER BY source_id;",
+          "rawSql": "SELECT s.name AS \"Provider\", COUNT(*) AS \"Checks\",\n ROUND(100.0 * AVG(CASE WHEN a.succeeded THEN 1.0 ELSE 0.0 END), 1) AS \"Success rate\",\n MAX(a.checked_at) AS \"Last check\"\nFROM external_status.poll_attempts a JOIN external_status.sources s ON s.id = a.source_id\nWHERE s.enabled AND s.collection_mode NOT IN ('manual', 'public_advisory') AND $__timeFilter(a.checked_at)\nGROUP BY s.id, s.name ORDER BY \"Success rate\", s.name;",
           "refId": "A"
         }
       ],
-      "title": "Poll reliability",
+      "title": "Automatic collection reliability",
       "type": "table"
     },
     {
@@ -774,7 +1057,7 @@
         "type": "grafana-postgresql-datasource",
         "uid": "${DS_TVX_SKYNET}"
       },
-      "description": "Provider condition over the selected time range. Numeric values are mapped back to normalized service states.",
+      "description": "Provider observations connected between checks. Gaps beyond each source freshness threshold become Unknown; hover to read the normalized state.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -783,7 +1066,7 @@
           "custom": {
             "fillOpacity": 70,
             "lineWidth": 0,
-            "spanNulls": false
+            "spanNulls": true
           },
           "mappings": [
             {
@@ -860,7 +1143,7 @@
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
-          "showLegend": true
+          "showLegend": false
         },
         "mergeValues": true,
         "rowHeight": 0.8,
@@ -880,11 +1163,11 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n    observed_at AS \"time\",\n    provider_id AS metric,\n    CASE status\n        WHEN 'operational' THEN 0\n        WHEN 'maintenance' THEN 1\n        WHEN 'unknown' THEN 2\n        WHEN 'degraded' THEN 3\n        WHEN 'partial_outage' THEN 4\n        WHEN 'major_outage' THEN 5\n        ELSE 2\n    END::double precision AS value\nFROM external_status.provider_observations\nWHERE $__timeFilter(observed_at)\nORDER BY observed_at;",
+          "rawSql": "WITH samples AS (\n SELECT o.provider_id, s.name, o.observed_at, s.stale_after_seconds,\n  LEAD(o.observed_at) OVER (PARTITION BY o.provider_id ORDER BY o.observed_at) AS next_at,\n  CASE o.status WHEN 'operational' THEN 0 WHEN 'maintenance' THEN 1 WHEN 'unknown' THEN 2\n   WHEN 'degraded' THEN 3 WHEN 'partial_outage' THEN 4 WHEN 'major_outage' THEN 5 ELSE 2 END::double precision AS value\n FROM external_status.provider_observations o JOIN external_status.sources s ON s.id = o.provider_id\n WHERE s.enabled AND s.collection_mode <> 'public_advisory' AND s.collection_mode <> 'public_advisory' AND $__timeFilter(o.observed_at)\n), states AS (\n SELECT observed_at AS \"time\", name AS metric, value FROM samples\n UNION ALL\n SELECT observed_at + stale_after_seconds * interval '1 second', name, 2::double precision\n FROM samples WHERE observed_at + stale_after_seconds * interval '1 second' < COALESCE(next_at, now())\n)\nSELECT * FROM states WHERE $__timeFilter(\"time\") ORDER BY \"time\";",
           "refId": "A"
         }
       ],
-      "title": "Provider state timeline",
+      "title": "Service history",
       "type": "state-timeline"
     },
     {
@@ -892,7 +1175,7 @@
         "type": "grafana-postgresql-datasource",
         "uid": "${DS_TVX_SKYNET}"
       },
-      "description": "Current status of the configured components for the selected providers.",
+      "description": "Worst state per provider/component name; duplicate regional entries are grouped with their instance count. Limited to 250 rows; select a provider for detail.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -994,7 +1277,8 @@
           "show": false
         },
         "showHeader": true,
-        "sortBy": []
+        "sortBy": [],
+        "enablePagination": true
       },
       "pluginVersion": "12.0.0",
       "targets": [
@@ -1006,7 +1290,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n    source.name AS \"Provider\",\n    component.name AS \"Component\",\n    component.current_status AS \"Status\",\n    component.provider_updated_at AS \"Provider updated\"\nFROM external_status.components AS component\nJOIN external_status.sources AS source ON source.id = component.provider_id\nWHERE component.active\n  AND component.provider_id ~ '^${provider:regex}$'\nORDER BY source.name, component.name;",
+          "rawSql": "SELECT source.name AS \"Provider\", component.name AS \"Component\",\n CASE MAX(CASE component.current_status WHEN 'operational' THEN 0 WHEN 'maintenance' THEN 1\n  WHEN 'unknown' THEN 2 WHEN 'degraded' THEN 3 WHEN 'partial_outage' THEN 4 WHEN 'major_outage' THEN 5 ELSE 2 END)\n WHEN 0 THEN 'operational' WHEN 1 THEN 'maintenance' WHEN 2 THEN 'unknown'\n WHEN 3 THEN 'degraded' WHEN 4 THEN 'partial_outage' ELSE 'major_outage' END AS \"Status\",\n COUNT(*) AS \"Reported instances\", MAX(component.provider_updated_at) AS \"Provider updated\"\nFROM external_status.components component JOIN external_status.sources source ON source.id = component.provider_id\nWHERE source.enabled AND component.active AND component.provider_id ~ '^${provider:regex}$'\nGROUP BY source.name, component.name\nORDER BY MAX(CASE component.current_status WHEN 'operational' THEN 0 WHEN 'maintenance' THEN 1\n WHEN 'unknown' THEN 2 WHEN 'degraded' THEN 3 WHEN 'partial_outage' THEN 4 WHEN 'major_outage' THEN 5 ELSE 2 END) DESC,\n source.name, component.name LIMIT 250;",
           "refId": "A"
         }
       ],
@@ -1109,7 +1393,8 @@
             "desc": true,
             "displayName": "Checked"
           }
-        ]
+        ],
+        "enablePagination": true
       },
       "pluginVersion": "12.0.0",
       "targets": [
@@ -1172,6 +1457,30 @@
                 ]
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Customer / internal dependency"
+            },
+            "properties": [
+              {
+                "id": "custom.wrapText",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Coverage and limitations"
+            },
+            "properties": [
+              {
+                "id": "custom.wrapText",
+                "value": true
+              }
+            ]
           }
         ]
       },
@@ -1193,7 +1502,8 @@
           "show": false
         },
         "showHeader": true,
-        "sortBy": []
+        "sortBy": [],
+        "enablePagination": true
       },
       "pluginVersion": "12.0.0",
       "targets": [
@@ -1205,7 +1515,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT name AS \"Provider\", category AS \"Category\", collection_mode AS \"Collection\",\n    dependency AS \"Customer / internal dependency\", coverage AS \"Coverage and limitations\", status_url AS \"Status page\"\nFROM external_status.source_catalog WHERE enabled ORDER BY category, name;",
+          "rawSql": "SELECT name AS \"Provider\", category AS \"Category\", collection_mode AS \"Collection\",\n    dependency AS \"Customer / internal dependency\", coverage AS \"Coverage and limitations\", status_url AS \"Status page\"\nFROM external_status.sources WHERE enabled ORDER BY category, name;",
           "refId": "A"
         }
       ],
@@ -1213,90 +1523,49 @@
       "type": "table"
     },
     {
+      "id": 12,
+      "title": "How to read this dashboard",
+      "type": "text",
+      "description": "Scope, coverage and freshness guide.",
+      "options": {
+        "mode": "markdown",
+        "content": "**Current incidents** shows provider, affected service and full incident title. Click an issue for the provider\u2019s updates. All configured sources collect automatically. **Public info only** means the provider publishes no verified global network-health signal: page reachability is not treated as operational service. Microsoft uses public advisories and needs no tenant ID. The Provider filter applies to component and poll details."
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      }
+    },
+    {
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "${DS_TVX_SKYNET}"
       },
-      "description": "Worst state for customer-critical services and carriers. Unknown includes missing tenant credentials and unreported or expired manual statuses.",
+      "description": "Sources with unavailable health signals, stale data or failed collection. Successful public-page retrieval without a global network-health signal remains Unknown.",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "fixed",
+            "fixedColor": "text"
           },
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "color": "green",
-                  "text": "Operational"
-                },
-                "1": {
-                  "color": "blue",
-                  "text": "Maintenance"
-                },
-                "2": {
-                  "color": "gray",
-                  "text": "Unknown"
-                },
-                "3": {
-                  "color": "yellow",
-                  "text": "Degraded"
-                },
-                "4": {
-                  "color": "orange",
-                  "text": "Partial outage"
-                },
-                "5": {
-                  "color": "red",
-                  "text": "Major outage"
-                }
-              },
-              "type": "value"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "blue",
-                "value": 1
-              },
-              {
-                "color": "gray",
-                "value": 2
-              },
-              {
-                "color": "yellow",
-                "value": 3
-              },
-              {
-                "color": "orange",
-                "value": 4
-              },
-              {
-                "color": "red",
-                "value": 5
-              }
-            ]
-          }
+          "decimals": 0,
+          "min": 0
         },
         "overrides": []
       },
       "gridPos": {
-        "x": 12,
-        "y": 3,
-        "w": 12,
-        "h": 5
+        "h": 6,
+        "w": 10,
+        "x": 0,
+        "y": 0
       },
-      "id": 11,
+      "id": 13,
       "options": {
-        "colorMode": "background",
+        "colorMode": "value",
         "graphMode": "none",
-        "justifyMode": "center",
+        "justifyMode": "left",
         "orientation": "horizontal",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
@@ -1307,7 +1576,7 @@
           "values": false
         },
         "showPercentChange": false,
-        "textMode": "value_and_name",
+        "textMode": "value",
         "wideLayout": true
       },
       "pluginVersion": "12.0.0",
@@ -1320,7 +1589,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n    COALESCE(MAX(CASE effective_status\n        WHEN 'operational' THEN 0\n        WHEN 'maintenance' THEN 1\n        WHEN 'unknown' THEN 2\n        WHEN 'degraded' THEN 3\n        WHEN 'partial_outage' THEN 4\n        WHEN 'major_outage' THEN 5\n        ELSE 2\n    END), 2) AS \"Customer-critical status\"\nFROM external_status.provider_current WHERE category IN ('customer-critical', 'carriers');",
+          "rawSql": "SELECT COUNT(*)::bigint AS \"Coverage gaps\" FROM external_status.provider_current WHERE stale OR effective_status = 'unknown' OR consecutive_failures > 0;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -1341,24 +1610,8 @@
           }
         }
       ],
-      "title": "Customer-critical dependency status",
+      "title": "Coverage gaps",
       "type": "stat"
-    },
-    {
-      "id": 12,
-      "title": "How to read this dashboard",
-      "type": "text",
-      "description": "Scope, coverage and freshness guide.",
-      "options": {
-        "mode": "markdown",
-        "content": "Start with **Issues now**: each row shows the provider, affected service and exact incident title. Click the source link for the provider\u2019s updates. No reported incidents does not prove every integration is healthy: **All providers** shows missing credentials, manual reports, stale data and failed collection. Manual reports expire after 24 hours. Microsoft tenant health requires Graph app credentials. Provider selection filters component and poll-detail panels; summaries and current issues cover all enabled providers."
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 0,
-        "w": 24,
-        "h": 3
-      }
     }
   ],
   "refresh": "1m",
