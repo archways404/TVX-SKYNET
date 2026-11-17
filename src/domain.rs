@@ -99,6 +99,8 @@ pub struct NetworkLocation {
     pub latitude: f64,
     pub longitude: f64,
     pub precision: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub geometry: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -157,6 +159,7 @@ pub struct ObservationBatch {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ProviderView {
+    pub metadata: crate::config::SourceMetadata,
     pub id: String,
     pub name: String,
     pub category: String,

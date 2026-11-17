@@ -61,6 +61,7 @@ impl InMemoryStore {
                     source.id.clone(),
                     ProviderRecord {
                         id: source.id.clone(),
+                        metadata: source.metadata.clone(),
                         name: source.name.clone(),
                         category: source.category.clone(),
                         status: ServiceStatus::Unknown,
@@ -95,6 +96,7 @@ impl InMemoryStore {
 
 #[derive(Debug, Clone)]
 struct ProviderRecord {
+    metadata: crate::config::SourceMetadata,
     id: String,
     name: String,
     category: String,
@@ -118,6 +120,7 @@ impl ProviderRecord {
     fn view(&self, now: DateTime<Utc>) -> ProviderView {
         let stale = self.stale(now);
         ProviderView {
+            metadata: self.metadata.clone(),
             id: self.id.clone(),
             name: self.name.clone(),
             category: self.category.clone(),
@@ -247,3 +250,47 @@ impl StatusStore for InMemoryStore {
 }
 
 pub type SharedStore = Arc<dyn StatusStore>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn every_enabled_provider_remains_visible_before_and_after_failed_poll() {
+        let config = crate::config::AppConfig::load("config/sources.yaml").unwrap();
+        let store = InMemoryStore::new(&config.sources, &config.defaults);
+        store
+            .mark_failed("line-carrier", Utc::now(), "Feed unavailable".into())
+            .await
+            .unwrap();
+        let summary = store.summary().await.unwrap();
+        let expected: std::collections::HashSet<_> = config
+            .sources
+            .iter()
+            .filter(|s| s.enabled)
+            .map(|s| s.id.as_str())
+            .collect();
+        let actual: std::collections::HashSet<_> =
+            summary.providers.iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(actual, expected);
+        let provider = summary
+            .providers
+            .iter()
+            .find(|p| p.id == "line-carrier")
+            .unwrap();
+        assert_eq!(provider.status, ServiceStatus::Unknown);
+        assert!(provider.stale);
+        let payload = serde_json::to_value(provider).unwrap();
+        assert_eq!(payload["metadata"]["country_codes"][0], "FI");
+        assert_eq!(
+            store
+                .source_health()
+                .await
+                .unwrap()
+                .iter()
+                .find(|s| s.id == "line-carrier")
+                .unwrap()
+                .consecutive_failures,
+            1
+        );
+    }
+}

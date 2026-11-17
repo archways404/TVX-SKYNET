@@ -345,14 +345,74 @@ fn map_locations(features: &[Value], county: &str) -> Result<Vec<NetworkLocation
             .pointer("/properties/name")
             .and_then(Value::as_str)
             .unwrap_or("unnamed provider area");
+        let geometry = map_geometry(feature, &from, &to)?;
         locations.push(NetworkLocation {
             name: format!("{county} · {area}"),
             latitude,
             longitude,
-            precision: "area_center".into(),
+            precision: if geometry.is_some() {
+                "provider_polygon"
+            } else {
+                "area_center"
+            }
+            .into(),
+            geometry,
         });
     }
     Ok(locations)
+}
+
+fn map_geometry(
+    feature: &Value,
+    from: &proj4rs::proj::Proj,
+    to: &proj4rs::proj::Proj,
+) -> Result<Option<Value>, CollectorError> {
+    let Some(mut geometry) = feature.get("geometry").cloned() else {
+        return Ok(None);
+    };
+    if !matches!(
+        geometry.get("type").and_then(Value::as_str),
+        Some("Polygon" | "MultiPolygon")
+    ) {
+        return Ok(None);
+    }
+    fn transform(
+        value: &mut Value,
+        from: &proj4rs::proj::Proj,
+        to: &proj4rs::proj::Proj,
+    ) -> Result<(), CollectorError> {
+        let values = value
+            .as_array_mut()
+            .ok_or_else(|| invalid("invalid Telia polygon"))?;
+        if values.first().is_some_and(Value::is_number) {
+            if values.len() < 2 {
+                return Err(invalid("invalid Telia polygon point"));
+            }
+            let mut point = (
+                values[0]
+                    .as_f64()
+                    .ok_or_else(|| invalid("invalid easting"))?,
+                values[1]
+                    .as_f64()
+                    .ok_or_else(|| invalid("invalid northing"))?,
+                0.0,
+            );
+            proj4rs::transform::transform(from, to, &mut point)
+                .map_err(|_| invalid("Telia polygon projection failed"))?;
+            let (lon, lat) = (point.0.to_degrees(), point.1.to_degrees());
+            if !lon.is_finite() || !lat.is_finite() || lon.abs() > 180.0 || lat.abs() > 90.0 {
+                return Err(invalid("invalid Telia polygon bounds"));
+            }
+            *value = serde_json::json!([lon, lat]);
+        } else {
+            for value in values {
+                transform(value, from, to)?;
+            }
+        }
+        Ok(())
+    }
+    transform(&mut geometry["coordinates"], from, to)?;
+    Ok(Some(geometry))
 }
 
 #[cfg(test)]

@@ -486,6 +486,7 @@ sources:
     category: carriers
     request_timeout: 60s
     metadata:
+      country_codes: ["SE"]
       dependency: "Carrier connectivity and customer calls"
       coverage: "Official public fixed-network county and case tables for broadband and IP telephony. TV is excluded. Regional cases do not establish a nationwide or mobile outage; county associations follow map viewports."
       status_url: "https://www.telia.se/support/driftinformation-fast"
@@ -499,6 +500,7 @@ sources:
     category: carriers
     request_timeout: 60s
     metadata:
+      country_codes: ["SE"]
       dependency: "Carrier connectivity and customer calls"
       coverage: "Official public fixed-network outage portal. Local broadband/telephony cases; TV is excluded; no nationwide or mobile health guarantee. County associations follow map viewports."
       status_url: "https://mboss.telenor.se/outageportalfixed/"
@@ -511,8 +513,9 @@ sources:
     name: "TDC / TDC NET"
     category: carriers
     metadata:
+      country_codes: ["DK"]
       dependency: "Danish carrier connectivity, customer calls and mobile access"
-      coverage: "Official TDC public network incidents for mobile telephony, broadband/IP, access and transport. Local incidents; resolved reports and future planned windows are excluded."
+      coverage: "Official TDC public network incidents for mobile telephony, broadband/IP, access and transport, joined by case ID to the public TDC NET mobile map markers. Local incidents; resolved reports and future planned windows are excluded."
       status_url: "https://tdc.dk/da/kundeservice/driftsinformation"
       domain: "tdc.dk"
     collector:
@@ -530,6 +533,7 @@ sources:
     name: "Telia DK / Norlys"
     category: carriers
     metadata:
+      country_codes: ["DK"]
       dependency: "Danish carrier connectivity, customer calls and mobile access"
       coverage: "Official Norlys DataNet, fixed, mobile and UC bulletins and explicit no-known-issues statements; hosting is excluded. Notices more than 24 hours past their repair estimate remain unconfirmed/unknown rather than fresh outage evidence."
       status_url: "https://shop.norlys.dk/kundeservice/mobil/dakning-og-drift/driftsinformation/"
@@ -547,6 +551,7 @@ sources:
     name: "Proximus (public voice/SMS APIs)"
     category: carriers
     metadata:
+      country_codes: ["BE"]
       dependency: "Carrier calls and messaging; public collection covers Enco voice/SMS APIs"
       coverage: "Official Proximus Enco voice, SMS and fixed/mobile unification components and incidents. This feed does not establish Belgian access-network or wholesale trunk health; those account/line-specific services remain outside public coverage."
       status_url: "https://status.enco.io/"
@@ -563,6 +568,7 @@ sources:
     name: "Line Carrier"
     category: carriers
     metadata:
+      country_codes: ["FI"]
       dependency: "Carrier connectivity and customer calls"
       coverage: "Official Finnish incident RSS; Korjattu titles are resolved. Other bulletins remain active advisories."
       status_url: "https://www.linecarrier.fi/hairiotiedotteet/"
@@ -575,6 +581,7 @@ sources:
     name: "Erate / Telavox Norway"
     category: carriers
     metadata:
+      country_codes: ["NO"]
       dependency: "Norwegian carrier connectivity, mobile services and customer calls"
       coverage: "Erate's public website redirects to Telavox Norway and links this official status page. Collects Norway components and Norway-targeted incidents only; no independent Erate wholesale/MVNO platform feed is exposed."
       status_url: "https://status.telavox.com/"
@@ -584,3 +591,16 @@ sources:
       url: https://status.io/1.0/status/5c77e330cac2ed049a438709
     include_components:
       - Norway
+
+  - id: dna-fi
+    name: "DNA Finland (upstream network map)"
+    category: carriers
+    metadata:
+      country_codes: ["FI"]
+      dependency: "Finnish upstream mobile, voice, SMS and broadband network"
+      coverage: "Official DNA public outage-map polygons: voice, SMS, ADSL and mobile. Separate from Line Carrier platform status; does not prove that a particular Line Carrier subscription is affected. TV and planned maintenance layers excluded."
+      status_url: "https://kartat.dna.fi/Hairiokartta/"
+      domain: "dna.fi"
+    collector:
+      type: dna
+      url: https://kartat.dna.fi/Peka4Proxy/Hairiot_julk/MapServer/

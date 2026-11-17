@@ -1,6 +1,6 @@
 # Provider collection
 
-All 41 default sources are collected automatically. No manual reports, tenant ID,
+All 42 default sources are collected automatically. No manual reports, tenant ID,
 browser container or changedetection stack is required.
 Rebuild the existing combinator image after source or Rust changes.
 
@@ -95,3 +95,40 @@ RT90DP coordinates are transformed to WGS84 using the provider's exact projectio
 definition; Telia and Telenor markers show approximate area centres, not addresses.
 Overlapping reports are grouped by provider and position. Reports without coordinates
 remain in the table without guessed pins. No PostGIS or geocoding service is required.
+
+## Provider-map coverage and country navigation
+
+The API includes live `metadata` for each provider (dependency, coverage, source
+URL, domain and ISO country codes), even before its first successful poll. Memory
+and PostgreSQL backends expose the same fields. Migration 4 adds country coverage;
+it runs on startup. Country coverage describes a provider feed, not a nationwide outage.
+
+LSYNC lists every returned provider, including carriers without current cases.
+Country controls cover Sweden, Denmark, Norway, Finland and Belgium. Map pins are
+not limited to Sweden. `network_details.locations[].geometry` optionally carries
+WGS84 GeoJSON Polygon/MultiPolygon data alongside its approximate area centre.
+Telia SE's polygons are converted from the provider's RT90DP projection; Telenor
+SE's published bounding boxes are retained and shown with dashed boundaries.
+GeoRSS points and feature names are preserved together with plain-text bulletin
+updates. Invalid coordinates fail collection rather than producing misleading pins.
+
+DNA Finland is a separate upstream-network source using the ArcGIS queries behind
+https://kartat.dna.fi/Hairiokartta/ (layers 9, 10, 11 and 13). It covers voice, SMS,
+ADSL broadband and mobile disturbances, excludes TV and maintenance layers, retains
+municipality/postcode and provider polygons, and rejects partial/truncated query
+responses. Its health does not establish Line Carrier platform/subscription health.
+
+TDC's bulletin API supplies named Danish areas; the collector joins case IDs to the
+`Drift_Markers` GeoJSON behind TDC NET's public mobile map. An anonymous map
+session is obtained automatically. Published marker coordinates are retained;
+markers that omit geometry stay in the case list. Closed/planned map layers are excluded.
+Norlys supplies service bulletins. Norway's Erate/Telavox source publishes selected
+country/service components; Proximus's public source covers Enco APIs, not Belgian
+access-network faults. These cases remain visible without invented geographic pins.
+Line Carrier currently publishes resolved bulletins without geographic coordinates;
+its entry remains visible even when there are no active incidents.
+
+The coordinated LSYNC snapshot contract can be checked without any deployed database:
+`node scripts/check-lsync-contract.mjs <pglite-module-path> <TVX-LSYNC-checkout>`.
+The test uses an embedded, in-memory database, runs the actual migrations and LSYNC
+SQL, and verifies incidentless carriers, country metadata and polygon preservation.

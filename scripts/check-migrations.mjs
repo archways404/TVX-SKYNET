@@ -8,6 +8,7 @@ const root = new URL('../', import.meta.url);
 const initial = await readFile(new URL('migrations/0001_external_status.sql', root), 'utf8');
 const coverage = await readFile(new URL('migrations/0002_source_coverage.sql', root), 'utf8');
 const networkMigration = await readFile(new URL('migrations/0003_network_locations.sql', root), 'utf8');
+const countries = await readFile(new URL('migrations/0004_provider_countries.sql', root), 'utf8');
 const dashboard = JSON.parse(await readFile(new URL('deploy/grafana/tvx-skynet-dashboard-v2.json', root), 'utf8'));
 for (const scenario of ['fresh', 'partial-manual', 'complete-manual']) {
   const db = new PGlite();
@@ -40,6 +41,9 @@ for (const scenario of ['fresh', 'partial-manual', 'complete-manual']) {
     assert.equal((await db.query(preMigrationMapSql)).rows.length, 0, 'map query must work before the coordinate migration is deployed');
     await db.exec(networkMigration);
     await db.exec(networkMigration);
+    await db.exec(countries);
+    await db.exec(countries);
+    assert.deepEqual((await db.query("SELECT country_codes FROM external_status.source_catalog WHERE id = 'telia'")).rows[0].country_codes, []);
     await db.exec('SET ROLE dashboard_reader');
     for (const panel of Object.values(dashboard.spec.elements)) {
       for (const query of panel.spec.data.spec.queries) {

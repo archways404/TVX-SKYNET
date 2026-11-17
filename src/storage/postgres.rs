@@ -55,9 +55,9 @@ impl PostgresStore {
                     name,
                     category,
                     enabled,
-                    stale_after_seconds, dependency, coverage, status_url, domain, collection_mode
+                    stale_after_seconds, dependency, coverage, status_url, domain, collection_mode, country_codes
                 )
-                VALUES ($1, $2, $3, TRUE, $4, $5, $6, $7, $8, $9)
+                VALUES ($1, $2, $3, TRUE, $4, $5, $6, $7, $8, $9, $10)
                 ON CONFLICT (id) DO UPDATE SET
                     name = EXCLUDED.name,
                     category = EXCLUDED.category,
@@ -68,6 +68,7 @@ impl PostgresStore {
                     status_url = EXCLUDED.status_url,
                     domain = EXCLUDED.domain,
                     collection_mode = EXCLUDED.collection_mode,
+                    country_codes = EXCLUDED.country_codes,
                     updated_at = now()
                 "#,
             )
@@ -85,6 +86,7 @@ impl PostgresStore {
                 CollectorConfig::MicrosoftGraph => "authenticated",
                 _ => "automatic",
             })
+            .bind(&source.metadata.country_codes)
             .execute(&mut *transaction)
             .await?;
         }
@@ -156,6 +158,13 @@ impl PostgresStore {
         };
 
         Ok(ProviderView {
+            metadata: crate::config::SourceMetadata {
+                dependency: source.dependency,
+                coverage: source.coverage,
+                status_url: source.status_url,
+                domain: source.domain,
+                country_codes: source.country_codes,
+            },
             id: source.id,
             name: source.name,
             category: source.category,
@@ -542,6 +551,7 @@ const SOURCE_SELECT_ALL: &str = r#"
         name,
         category,
         stale_after_seconds,
+        dependency, coverage, status_url, domain, country_codes,
         current_status,
         last_checked_at,
         last_success_at,
@@ -558,6 +568,7 @@ const SOURCE_SELECT_ONE: &str = r#"
         name,
         category,
         stale_after_seconds,
+        dependency, coverage, status_url, domain, country_codes,
         current_status,
         last_checked_at,
         last_success_at,
@@ -569,6 +580,11 @@ const SOURCE_SELECT_ONE: &str = r#"
 
 #[derive(FromRow)]
 struct SourceRow {
+    dependency: String,
+    coverage: String,
+    status_url: String,
+    domain: String,
+    country_codes: Vec<String>,
     id: String,
     name: String,
     category: String,

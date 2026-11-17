@@ -7,7 +7,7 @@ use std::{
 };
 
 use anyhow::{Context, bail};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use url::Url;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -65,8 +65,10 @@ pub struct SourceConfig {
     pub collector: CollectorConfig,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct SourceMetadata {
+    #[serde(default)]
+    pub country_codes: Vec<String>,
     #[serde(default)]
     pub dependency: String,
     #[serde(default)]
@@ -98,6 +100,7 @@ pub enum CollectorConfig {
     Pipedrive { url: Url },
     PublicNotice { url: Url },
     Tdc { url: Url },
+    Dna { url: Url },
     Norlys { url: Url },
     StatusIo { url: Url },
     Manual { path: std::path::PathBuf },

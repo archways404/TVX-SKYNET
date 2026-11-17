@@ -128,6 +128,21 @@ fn append_cases(
             if !entry.affected_component_ids.contains(&component_id) {
                 entry.affected_component_ids.push(component_id.clone());
             }
+            if let Some((latitude, longitude)) = point
+                && !entry
+                    .network_details
+                    .locations
+                    .iter()
+                    .any(|p| p.latitude == latitude && p.longitude == longitude)
+            {
+                entry.network_details.locations.push(NetworkLocation {
+                    name: county.into(),
+                    latitude,
+                    longitude,
+                    precision: "provider_bounds".into(),
+                    geometry: map_geometry(item),
+                });
+            }
             if !entry.network_details.services.iter().any(|s| s == service) {
                 entry.network_details.services.push(service.into());
             }
@@ -141,11 +156,7 @@ fn append_cases(
                 ServiceStatus::PartialOutage,
             );
             entry.affected_component_ids.push(component_id.clone());
-            if let Some((lat, lon)) = point {
-                entry.source_url = Some(format!(
-                    "https://www.openstreetmap.org/?mlat={lat:.6}&mlon={lon:.6}#map=12/{lat:.6}/{lon:.6}"
-                ));
-            }
+            entry.source_url = Some(source.metadata.status_url.clone());
             let estimate = text(item, "CloseTime")?;
             entry.network_details = NetworkIncidentDetails {
                 location: Some(location.clone()),
@@ -155,7 +166,8 @@ fn append_cases(
                         name: county.into(),
                         latitude,
                         longitude,
-                        precision: "area_center".into(),
+                        precision: "provider_bounds".into(),
+                        geometry: map_geometry(item),
                     })
                     .into_iter()
                     .collect(),
@@ -199,6 +211,17 @@ fn map_point(item: &Value) -> Option<(f64, f64)> {
     Some(((south + north) / 2.0, (west + east) / 2.0))
 }
 
+fn map_geometry(item: &Value) -> Option<Value> {
+    map_point(item)?;
+    let west = item.pointer("/BBox/LL/Easting")?.as_f64()?;
+    let east = item.pointer("/BBox/UR/Easting")?.as_f64()?;
+    let south = item.pointer("/BBox/LL/Northing")?.as_f64()?;
+    let north = item.pointer("/BBox/UR/Northing")?.as_f64()?;
+    Some(
+        serde_json::json!({"type":"Polygon", "coordinates":[[[west,south],[east,south],[east,north],[west,north],[west,south]]]}),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -222,12 +245,16 @@ mod tests {
                 .name
                 .contains("approx. 59.2500, 15.2500 / Telephony")
         );
-        assert!(
-            batch.incidents[0]
-                .source_url
+        assert_eq!(
+            batch.incidents[0].source_url.as_deref(),
+            Some(source.metadata.status_url.as_str())
+        );
+        assert_eq!(
+            batch.incidents[0].network_details.locations[0]
+                .geometry
                 .as_ref()
-                .unwrap()
-                .contains("mlat=59.250000&mlon=15.250000")
+                .unwrap()["type"],
+            "Polygon"
         );
     }
 

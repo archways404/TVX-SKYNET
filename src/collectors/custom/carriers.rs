@@ -2,6 +2,136 @@
 use super::*;
 use scraper::{ElementRef, Html, Selector};
 
+/// Join public bulletin cases with the markers used by TDC NET's own mobile map.
+pub(super) async fn collect_tdc(
+    collector: &CustomCollector,
+    source: &SourceConfig,
+    url: &Url,
+) -> Result<ObservationBatch, CollectorError> {
+    let body = collector.body(collector.client.get(url.clone())).await?;
+    let mut batch = parse(source, &body)?;
+    let ticket = collector
+        .body(
+            collector
+                .client
+                .get("https://daekning.tdc.dk/teleservice2_tst/GenerateTicket.ashx"),
+        )
+        .await?;
+    let ticket: String = serde_json::from_slice(&ticket)
+        .map_err(|_| invalid("TDC public map session unavailable"))?;
+    if ticket.is_empty() {
+        return Err(invalid("TDC public map session empty"));
+    }
+    let mut url = Url::parse("https://daekning.tdc.dk/teleservice2_tst/GetGeoJson.ashx").unwrap();
+    url.query_pairs_mut()
+        .append_pair("layername", "Drift_Markers")
+        .append_pair("ticket", &ticket);
+    // The session value is never included in parse errors or telemetry.
+    let body = collector
+        .body(collector.client.get(url))
+        .await
+        .map_err(|_| invalid("TDC public map markers unavailable"))?;
+    append_tdc_map(source, &serde_json::from_slice(&body)?, &mut batch)?;
+    finish(&mut batch);
+    Ok(batch)
+}
+
+fn append_tdc_map(
+    source: &SourceConfig,
+    payload: &Value,
+    batch: &mut ObservationBatch,
+) -> Result<(), CollectorError> {
+    if text(payload, "type")? != "FeatureCollection" {
+        return Err(invalid("TDC map feature collection missing"));
+    }
+    for feature in array(payload, "features")? {
+        let properties = feature
+            .get("properties")
+            .ok_or_else(|| invalid("TDC map properties missing"))?;
+        if text(properties, "TT_STATUS")? != "Open" {
+            continue;
+        }
+        let id = text(properties, "TT_ID")?;
+        // Some official markers omit geometry. Their bulletin stays visible; no pin is fabricated.
+        let coordinates = if feature.get("geometry").is_none_or(Value::is_null) {
+            None
+        } else {
+            if feature.pointer("/geometry/type").and_then(Value::as_str) != Some("Point") {
+                return Err(invalid("TDC map marker is not a point"));
+            }
+            let longitude = feature
+                .pointer("/geometry/coordinates/0")
+                .and_then(Value::as_f64)
+                .filter(|v| v.is_finite() && v.abs() <= 180.0)
+                .ok_or_else(|| invalid("invalid TDC longitude"))?;
+            let latitude = feature
+                .pointer("/geometry/coordinates/1")
+                .and_then(Value::as_f64)
+                .filter(|v| v.is_finite() && v.abs() <= 90.0)
+                .ok_or_else(|| invalid("invalid TDC latitude"))?;
+            Some((latitude, longitude))
+        };
+        let area = text(properties, "SITE")?;
+        let point = coordinates.map(|(latitude, longitude)| NetworkLocation {
+            name: area.into(),
+            latitude,
+            longitude,
+            precision: "provider_map_point".into(),
+            geometry: None,
+        });
+        if let Some(entry) = batch
+            .incidents
+            .iter_mut()
+            .find(|entry| entry.external_id == id)
+        {
+            if let Some(point) = point
+                && !entry
+                    .network_details
+                    .locations
+                    .iter()
+                    .any(|p| p.latitude == point.latitude && p.longitude == point.longitude)
+            {
+                entry.network_details.locations.push(point);
+            }
+        } else {
+            let date = text(properties, "OPRETTET")?.replace('T', " ");
+            let started = danish_date(
+                &format!(
+                    "Oprettet: {}",
+                    chrono::NaiveDateTime::parse_from_str(&date, "%Y-%m-%d %H:%M:%S")
+                        .map_err(|_| invalid("invalid TDC map date"))?
+                        .format("%d-%m-%Y %H:%M")
+                ),
+                "Oprettet:",
+            )?;
+            let mut entry = incident(
+                source,
+                id,
+                text(properties, "DRIFTSINFORMATION")?,
+                started,
+                batch.observed_at,
+                ServiceStatus::PartialOutage,
+            );
+            entry.source_url =
+                Some("https://daekning.tdc.dk/tdcnetmap_ext_tile2/?tema=affected_open".into());
+            entry.network_details = NetworkIncidentDetails {
+                location: Some(area.into()),
+                services: vec!["Mobile voice and data".into()],
+                locations: point.into_iter().collect(),
+                ..Default::default()
+            };
+            entry.updates.push(IncidentUpdate {
+                external_id: format!("{id}:map"),
+                lifecycle: entry.lifecycle.clone(),
+                message: text(properties, "INFO")?.into(),
+                published_at: started,
+            });
+            batch.incidents.push(entry);
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn parse(
     source: &SourceConfig,
     body: &[u8],
@@ -160,11 +290,16 @@ fn status_io(
         .get("result")
         .ok_or_else(|| invalid("Status.io result missing"))?;
     let mut selected_groups = Vec::new();
+    let mut region_names = std::collections::HashMap::new();
     for group in array(result, "status")? {
         if !included(source, &[text(group, "name")?]) {
             continue;
         }
         selected_groups.push(text(group, "id")?.to_owned());
+        region_names.insert(
+            text(group, "id")?.to_owned(),
+            text(group, "name")?.to_owned(),
+        );
         for component in array(group, "containers")? {
             batch.components.push(ComponentObservation {
                 external_id: text(component, "id")?.into(),
@@ -240,6 +375,29 @@ fn status_io(
                 .filter_map(|c| c.get("_id").and_then(Value::as_str))
                 .filter(|id| batch.components.iter().any(|c| c.external_id == *id))
                 .map(str::to_owned)
+                .collect();
+            entry.network_details.location = Some(
+                groups
+                    .iter()
+                    .filter_map(|group| {
+                        group
+                            .get("_id")
+                            .and_then(Value::as_str)
+                            .and_then(|id| region_names.get(id))
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            );
+            entry.network_details.services = batch
+                .components
+                .iter()
+                .filter(|component| {
+                    entry
+                        .affected_component_ids
+                        .contains(&component.external_id)
+                })
+                .map(|component| component.name.clone())
                 .collect();
             entry.source_url = Some(source.metadata.status_url.clone());
             for message in messages {
@@ -401,6 +559,29 @@ mod tests {
         serde_yaml::from_str(&format!("id: test\nname: Test\ncategory: carriers\ncollector:\n  type: {kind}\n  url: https://status.example.com/\n")).unwrap()
     }
     #[test]
+    fn tdc_map_joins_cases_keeps_unmapped_reports_and_deduplicates_points() {
+        let source = source("tdc");
+        let feature = serde_json::json!({"type":"Feature", "geometry":{"type":"Point","coordinates":[10.2,56.1]},"properties":{"TT_ID":"case-1","TT_STATUS":"Open","SITE":"Aarhus","OPRETTET":"2026-01-01T12:00:00","DRIFTSINFORMATION":"Power fault","INFO":"Mobile voice and data affected"}});
+        let mut without_geometry = feature.clone();
+        without_geometry.as_object_mut().unwrap().remove("geometry");
+        without_geometry["properties"]["TT_ID"] = "case-2".into();
+        let payload = serde_json::json!({"type":"FeatureCollection","features":[feature.clone(),feature,without_geometry]});
+        let mut batch = empty(&source);
+        append_tdc_map(&source, &payload, &mut batch).unwrap();
+        assert_eq!(batch.incidents.len(), 2);
+        assert_eq!(batch.incidents[0].network_details.locations.len(), 1);
+        assert_eq!(
+            batch.incidents[0].network_details.locations[0].latitude,
+            56.1
+        );
+        assert!(batch.incidents[1].network_details.locations.is_empty());
+        assert_eq!(
+            batch.incidents[1].network_details.location.as_deref(),
+            Some("Aarhus")
+        );
+    }
+
+    #[test]
     fn tdc_uses_resolution_and_planned_windows_instead_of_estimated_repairs() {
         let mut item = serde_json::json!({"function":"Mobil Telefoni","realResolved":null,"plannedStart":null,"occured":"2026-01-01T00:00:00Z","updated":"2026-01-02T00:00:00Z","level":"Medium","fasId":"case-1","title":"Local calls failing","geography":"Sjælland","reason":"Power","consequence":"Calls affected"});
         let batch = parse(
@@ -454,6 +635,10 @@ mod tests {
         assert_eq!(batch.status, ServiceStatus::PartialOutage);
         assert_eq!(batch.incidents[0].lifecycle, IncidentLifecycle::Monitoring);
         assert_eq!(batch.incidents[0].affected_component_ids, vec!["calls"]);
+        assert_eq!(
+            batch.incidents[0].network_details.location.as_deref(),
+            Some("Norway")
+        );
         issue["messages"][0]["state"] = 400.into();
         value["result"]["incidents"] = serde_json::json!([issue]);
         assert!(

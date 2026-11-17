@@ -6,7 +6,7 @@ The current build includes:
 
 - Rust/Tokio polling engine with bounded concurrency and per-source timeouts.
 - Statuspage, Google, Apple, Meta, Salesforce, Slack and RSS advisory collectors.
-- 41 automatic public status/incident sources with explicit coverage scopes.
+- 42 automatic public status/incident sources with explicit coverage scopes.
   No tenant ID or manual-report source is required.
 - Component filtering and normalized service/incident states.
 - In-memory and PostgreSQL status stores behind one storage trait.

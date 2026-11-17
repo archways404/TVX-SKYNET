@@ -1,4 +1,5 @@
 mod carriers;
+mod dna;
 mod public;
 mod telenor;
 mod telia;
@@ -158,6 +159,8 @@ impl Collector for CustomCollector {
             CollectorConfig::MicrosoftGraph => return self.graph(source).await,
             CollectorConfig::Telia { url } => return telia::collect(self, source, url).await,
             CollectorConfig::Telenor { url } => return telenor::collect(self, source, url).await,
+            CollectorConfig::Dna { url } => return dna::collect(self, source, url).await,
+            CollectorConfig::Tdc { url } => return carriers::collect_tdc(self, source, url).await,
             CollectorConfig::Manual { path } => {
                 let file = std::fs::File::open(path)?;
                 use std::io::Read;
@@ -181,7 +184,6 @@ impl Collector for CustomCollector {
             | CollectorConfig::Zendesk { url }
             | CollectorConfig::Pipedrive { url }
             | CollectorConfig::PublicNotice { url }
-            | CollectorConfig::Tdc { url }
             | CollectorConfig::Norlys { url }
             | CollectorConfig::StatusIo { url } => url,
             _ => return Err(CollectorError::Unsupported(source.id.clone())),
@@ -609,6 +611,59 @@ fn parse_rss(source: &SourceConfig, body: &[u8]) -> Result<ObservationBatch, Col
         let mut entry = incident(source, id, title, start, start, ServiceStatus::Unknown);
         entry.source_url = field("link").map(str::to_owned);
         entry.lifecycle = IncidentLifecycle::Unknown;
+        if let Some(description) = field("encoded").or_else(|| field("description")) {
+            let fragment = scraper::Html::parse_fragment(description);
+            let message = fragment
+                .root_element()
+                .text()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ");
+            if !message.is_empty() {
+                entry.updates.push(IncidentUpdate {
+                    external_id: format!("{id}:bulletin"),
+                    lifecycle: entry.lifecycle.clone(),
+                    message,
+                    published_at: start,
+                });
+            }
+        }
+        // GeoRSS is provider-authored incident geography. Never use an office address.
+        let geo = |key| {
+            item.children()
+                .find(|n| {
+                    n.tag_name().namespace() == Some("http://www.georss.org/georss")
+                        && n.tag_name().name() == key
+                })
+                .and_then(|n| n.text())
+        };
+        entry.network_details.location = geo("featureName").map(str::to_owned);
+        if let Some(point) = geo("point") {
+            let coordinates = point
+                .split_whitespace()
+                .map(str::parse::<f64>)
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|_| invalid("invalid GeoRSS coordinates"))?;
+            if coordinates.len() != 2
+                || !coordinates[0].is_finite()
+                || !coordinates[1].is_finite()
+                || coordinates[0].abs() > 90.0
+                || coordinates[1].abs() > 180.0
+            {
+                return Err(invalid("GeoRSS coordinates outside geographic bounds"));
+            }
+            entry.network_details.locations.push(NetworkLocation {
+                name: geo("featureName")
+                    .unwrap_or("Provider-published location")
+                    .into(),
+                latitude: coordinates[0],
+                longitude: coordinates[1],
+                precision: "provider_point".into(),
+                geometry: None,
+            });
+        }
         batch.incidents.push(entry);
     }
     finish(&mut batch);
@@ -762,9 +817,37 @@ mod tests {
     }
 
     #[test]
+    fn rss_preserves_bulletin_scope_and_published_coordinates() {
+        let config = AppConfig::load("config/sources.yaml").unwrap();
+        let source = config
+            .sources
+            .iter()
+            .find(|s| s.id == "line-carrier")
+            .unwrap();
+        let body = br#"<rss xmlns:georss="http://www.georss.org/georss"><channel><item>
+          <title>Service advisory</title><guid>case-1</guid>
+          <pubDate>Tue, 17 Nov 2026 08:00:00 +0000</pubDate>
+          <description><![CDATA[<p>Broadband affected in Helsinki &amp; Espoo.</p>]]></description>
+          <georss:featureName>Helsinki</georss:featureName><georss:point>60.17 24.94</georss:point>
+        </item></channel></rss>"#;
+        let batch = parse_rss(source, body).unwrap();
+        let incident = &batch.incidents[0];
+        assert_eq!(
+            incident.updates[0].message,
+            "Broadband affected in Helsinki & Espoo."
+        );
+        assert_eq!(
+            incident.network_details.location.as_deref(),
+            Some("Helsinki")
+        );
+        assert_eq!(incident.network_details.locations[0].latitude, 60.17);
+        assert_eq!(incident.impact, ServiceStatus::Unknown);
+    }
+
+    #[test]
     fn shipped_configuration_is_valid() {
         let config = AppConfig::load("config/sources.yaml").unwrap();
-        assert_eq!(config.sources.len(), 41);
+        assert_eq!(config.sources.len(), 42);
         let compose = std::fs::read_to_string("deploy/portainer/combinator.yaml").unwrap();
         let _: serde_yaml::Value = serde_yaml::from_str(&compose).unwrap();
     }
