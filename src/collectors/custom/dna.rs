@@ -82,6 +82,15 @@ fn append(
         if started > batch.observed_at {
             continue;
         }
+        // VIKA_LOPPUI is the published fault end, not an estimated repair time.
+        if attrs
+            .get("VIKA_LOPPUI")
+            .and_then(Value::as_i64)
+            .and_then(DateTime::from_timestamp_millis)
+            .is_some_and(|ended| ended <= batch.observed_at)
+        {
+            continue;
+        }
         let rings = feature
             .pointer("/geometry/rings")
             .ok_or_else(|| invalid("DNA polygon missing"))?;
@@ -270,6 +279,18 @@ mod tests {
                 &mut empty(source)
             )
             .is_err()
+        );
+    }
+    #[test]
+    fn ended_outages_do_not_remain_on_the_map() {
+        let config = crate::config::AppConfig::load("config/sources.yaml").unwrap();
+        let source = config.sources.iter().find(|s| s.id == "dna-fi").unwrap();
+        let payload = serde_json::json!({"spatialReference":{"wkid":4326},"features":[{"attributes":{"RIVI_ID":7,"KUNTA":"Espoo","VIKA_ALKOI":1735689600000_i64,"VIKA_LOPPUI":1735776000000_i64},"geometry":{"rings":[[[24.8,60.1],[24.8,60.2],[24.9,60.2],[24.9,60.1],[24.8,60.1]]]}}]});
+        let mut batch = empty(source);
+        append(source, &payload, 9, "Voice", &mut batch).unwrap();
+        assert!(
+            batch.incidents.is_empty(),
+            "ended faults must not generate active map points"
         );
     }
 }

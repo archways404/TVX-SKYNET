@@ -132,3 +132,75 @@ The coordinated LSYNC snapshot contract can be checked without any deployed data
 `node scripts/check-lsync-contract.mjs <pglite-module-path> <TVX-LSYNC-checkout>`.
 The test uses an embedded, in-memory database, runs the actual migrations and LSYNC
 SQL, and verifies incidentless carriers, country metadata and polygon preservation.
+
+
+## Dependency coverage reviewed 2026-11-18
+
+The catalog has 64 sources: 45 automatic public collectors and 19 explicit gaps.
+A `coverage_gap` entry deliberately fails collection with its configured reason.
+It remains visible and unknown, with no successful poll or operational status.
+This is an inventory of missing evidence, not an availability monitor; do not
+interpret the source-health failure count as a vendor outage. Gaps poll hourly
+without making network requests. Replace them with a verified collector once its
+endpoint and health contract are available.
+
+Added automatic collection:
+
+- Simwood: official Statuspage `API and Portal` component, relevant to signup
+  inventory. Does not test account inventory or reserve a number.
+- Creditsafe: official public Hund HTML component states (`Connect API` and
+  `Global Gateway Service and Integrated apps`). The Swedish GetData SOAP URL in
+  `CreditChecker` has no dedicated public component, so this is advisory coverage.
+  Unknown states remain unknown; missing/changed component markup fails collection.
+- Nager.Date: read-only current-year PublicHolidays requests for FO, AD, GL and IS,
+  the four countries used by `HolidayCalendarFetcherServiceImpl`. Each response
+  must be nonempty with matching country/year and named holidays. Other countries
+  use Enrico, a separate dependency; this check does not validate ten-year coverage,
+  S3 writes or customer routing. Requests run every five minutes.
+
+Billiant porting/NABS/outbox, Erate BSS/NRDB/CDR, Colt Apigee number management,
+SNPAC/NUMPAC, GlobalConnect CDR delivery, Cention errands, UAE Pass, Etisalat
+CloudTalk, Voxo, Telia/TDC MMS, Peppol/Visma, Nets and Printship now have explicit
+entries describing the missing check. Authenticated API checks need dedicated
+read-only accounts; SFTP checks need the configured host and a file-freshness
+contract. Do not create orders, port numbers, send MMS, transcribe audio, print
+invoices or submit payments to establish health. No credentials were added.
+UAE Pass defaults to a staging issuer in source code: confirm its configured
+production issuer rather than monitoring that default. Colt uses
+`https://apis.colt.net/numberManagement`; the retired SOAP host is excluded.
+Printship's host is configuration-driven, so no website/domain was guessed.
+Google Cloud metadata now names the customer-facing Vertex AI/Gemini uses visible
+in omni, chat and transcription code.
+
+Telenor Norway is listed with the requested coverage-map reference. Its client
+publishes raster fault exports and point-identify responses, not an enumerable
+incident feed. Metadata/layer queries returned 403; the supported point identify
+request returned 200. A browser check confirmed its frame embedding is blocked.
+ORBYTE provides a direct official live-map link and translations for “Feil i
+nettet” (Network faults), “Brudd” (Outage) and “Redusert kapasitet” (Reduced capacity).
+Its raster areas are **not imported as ORBYTE dots**. It remains unknown in our
+aggregate status. Norway's Telavox feed is separate and supplies no geographic
+case coordinates. Do not fabricate Norway pins from a country name.
+
+DNA Finland retains municipality/postcode and full polygons, including disjoint
+areas and holes. Reports with `VIKA_LOPPUI` at or before observation time are now
+excluded. Line Carrier bulletins without geographic coordinates stay in the list.
+
+ORBYTE searches every published locality, folds Nordic accents (Malmö/Malmo,
+Tromsø/Tromso), and provides a small built-in city gazetteer. A city search also
+matches provider polygons containing that city, excluding holes. This is not a
+worldwide geocoder or a guarantee of service at an address. Map bounds include
+all polygon vertices; selection fits every area of a case. Wheel/keyboard zoom,
+city labels and readable multiline tooltips are enabled. Known Danish/Norwegian
+service terms have English labels; free-form reports keep their original text.
+
+Validation on 2026-11-18: all 45 public collectors passed the explicit live check,
+including Erate/Telavox Norway, DNA Finland and Line Carrier. DNA and Line Carrier
+had no current geographic cases in that response; this does not test a specific
+subscription. Unit fixtures cover Finnish polygons and resolved reports. Browser
+verification used synthetic incidents for search, full-area display and wheel
+zoom, not a simulated production outage.
+
+GetAccept, Bring/Posten, BGC, Fastly, Intercom and Amplitude were not added from
+name-only matches. GetAccept's continued use for BSS quote signing still needs
+owner confirmation; it has not been represented as a verified dependency.

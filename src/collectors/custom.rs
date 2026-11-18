@@ -1,4 +1,5 @@
 mod carriers;
+mod dependencies;
 mod dna;
 mod public;
 mod telenor;
@@ -159,6 +160,11 @@ impl Collector for CustomCollector {
             CollectorConfig::MicrosoftGraph => return self.graph(source).await,
             CollectorConfig::Telia { url } => return telia::collect(self, source, url).await,
             CollectorConfig::Telenor { url } => return telenor::collect(self, source, url).await,
+            CollectorConfig::CoverageGap { reason } => {
+                return Err(invalid(&format!("Coverage gap: {reason}")));
+            }
+            CollectorConfig::Nager { url } => return dependencies::nager(self, source, url).await,
+            CollectorConfig::Hund { url } => return dependencies::hund(self, source, url).await,
             CollectorConfig::Dna { url } => return dna::collect(self, source, url).await,
             CollectorConfig::Tdc { url } => return carriers::collect_tdc(self, source, url).await,
             CollectorConfig::Manual { path } => {
@@ -847,7 +853,20 @@ mod tests {
     #[test]
     fn shipped_configuration_is_valid() {
         let config = AppConfig::load("config/sources.yaml").unwrap();
-        assert_eq!(config.sources.len(), 42);
+        assert!(config.sources.len() >= 60);
+        for id in [
+            "billiant-porting",
+            "erate-bss",
+            "erate-nrdb",
+            "colt",
+            "cention",
+            "uae-pass",
+            "creditsafe",
+            "voxo",
+            "telenor-no",
+        ] {
+            assert!(config.sources.iter().any(|s| s.id == id), "missing {id}");
+        }
         let compose = std::fs::read_to_string("deploy/portainer/combinator.yaml").unwrap();
         let _: serde_yaml::Value = serde_yaml::from_str(&compose).unwrap();
     }
@@ -862,7 +881,9 @@ mod tests {
             only.as_ref().is_none_or(|id| id == &s.id)
                 && !matches!(
                     s.collector,
-                    CollectorConfig::Manual { .. } | CollectorConfig::MicrosoftGraph
+                    CollectorConfig::Manual { .. }
+                        | CollectorConfig::MicrosoftGraph
+                        | CollectorConfig::CoverageGap { .. }
                 )
         }) {
             match tokio::time::timeout(std::time::Duration::from_secs(30), registry.collect(source))

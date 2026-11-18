@@ -197,7 +197,7 @@ sources:
     name: "Google Cloud"
     category: customer-critical
     metadata:
-      dependency: "Google Cloud services supporting integrations"
+      dependency: "Customer-facing AI: Vertex AI / Gemini for omni errands, chat and transcription"
       coverage: "Public global incidents; reCAPTCHA availability may not be represented."
       status_url: "https://status.cloud.google.com/"
       domain: "cloud.google.com"
@@ -604,3 +604,307 @@ sources:
     collector:
       type: dna
       url: https://kartat.dna.fi/Peka4Proxy/Hairiot_julk/MapServer/
+
+  - id: billiant-porting
+    name: "Billiant — Belgian number porting"
+    category: "customer-critical"
+    poll_interval: "1h"
+    metadata:
+      country_codes: ["BE"]
+      dependency: "Belgian inbound number porting via tvx-np-proxy.billiant.com"
+      coverage: "Not monitored: Authenticated Belgian porting synthetic required; no verified public incident feed. Do not submit a real porting request as a health check."
+      status_url: "https://billiant.com/"
+      domain: "billiant.com"
+    collector:
+      type: "coverage_gap"
+      reason: "Authenticated Belgian porting synthetic required; no verified public incident feed. Do not submit a real porting request as a health check."
+
+  - id: billiant-nabs
+    name: "Billiant / NABS — TDC provisioning"
+    category: "customer-critical"
+    poll_interval: "1h"
+    metadata:
+      country_codes: ["DK"]
+      dependency: "Danish mobile provisioning via tvx-nabs-api.billiant.com"
+      coverage: "Not monitored: Authenticated read-only NABS synthetic required; no verified public incident feed."
+      status_url: "https://billiant.com/"
+      domain: "billiant.com"
+    collector:
+      type: "coverage_gap"
+      reason: "Authenticated read-only NABS synthetic required; no verified public incident feed."
+
+  - id: billiant-outbox
+    name: "Billiant — outbox events"
+    category: "customer-critical"
+    poll_interval: "1h"
+    metadata:
+      country_codes: []
+      dependency: "Outbox delivery via tvx-dmo-api.billiant.com"
+      coverage: "Not monitored: Authenticated read-only outbox synthetic required; no verified public incident feed."
+      status_url: "https://billiant.com/"
+      domain: "billiant.com"
+    collector:
+      type: "coverage_gap"
+      reason: "Authenticated read-only outbox synthetic required; no verified public incident feed."
+
+  - id: erate-bss
+    name: "Erate — wholesale BSS API"
+    category: "customer-critical"
+    poll_interval: "1h"
+    metadata:
+      country_codes: ["NO"]
+      dependency: "Wholesale BSS via prod-billiant-wholesale-api-proxy.erate.no"
+      coverage: "Not monitored: Authenticated BSS read-only synthetic required. Telavox Norway status does not establish wholesale API health."
+      status_url: "https://erate.no/"
+      domain: "erate.no"
+    collector:
+      type: "coverage_gap"
+      reason: "Authenticated BSS read-only synthetic required. Telavox Norway status does not establish wholesale API health."
+
+  - id: erate-nrdb
+    name: "Erate — NRDB API"
+    category: "customer-critical"
+    poll_interval: "1h"
+    metadata:
+      country_codes: ["NO"]
+      dependency: "Norwegian number portability via prod-billiant-nrdb-api-proxy.erate.no"
+      coverage: "Not monitored: Authenticated NRDB read-only synthetic required; separate from carrier network status."
+      status_url: "https://erate.no/"
+      domain: "erate.no"
+    collector:
+      type: "coverage_gap"
+      reason: "Authenticated NRDB read-only synthetic required; separate from carrier network status."
+
+  - id: erate-cdr
+    name: "Erate — CDR / file delivery"
+    category: "customer-critical"
+    poll_interval: "1h"
+    metadata:
+      country_codes: ["NO"]
+      dependency: "CDR file retrieval from osl1ftp1.erate.no"
+      coverage: "Not monitored: SFTP directory and file-freshness check requires the existing production integration credentials; public web status is insufficient."
+      status_url: "https://erate.no/"
+      domain: "erate.no"
+    collector:
+      type: "coverage_gap"
+      reason: "SFTP directory and file-freshness check requires the existing production integration credentials; public web status is insufficient."
+
+  - id: colt
+    name: "Colt — number management API"
+    category: "customer-critical"
+    poll_interval: "1h"
+    metadata:
+      country_codes: []
+      dependency: "Number and address management on apis.colt.net/numberManagement"
+      coverage: "Not monitored: Authenticated read-only Apigee number-management synthetic required. Retired SOAP host is excluded."
+      status_url: "https://developer.colt.net/"
+      domain: "colt.net"
+    collector:
+      type: "coverage_gap"
+      reason: "Authenticated read-only Apigee number-management synthetic required. Retired SOAP host is excluded."
+
+  - id: snpac
+    name: "SNPAC / NUMPAC"
+    category: "customer-critical"
+    poll_interval: "1h"
+    metadata:
+      country_codes: ["SE"]
+      dependency: "Swedish number portability database"
+      coverage: "Not monitored: Confirm the production NUMPAC endpoint and access method, then add a read-only lookup synthetic; no verified public status feed."
+      status_url: "https://snpac.se/"
+      domain: "snpac.se"
+    collector:
+      type: "coverage_gap"
+      reason: "Confirm the production NUMPAC endpoint and access method, then add a read-only lookup synthetic; no verified public status feed."
+
+  - id: globalconnect-cdr
+    name: "GlobalConnect — Norway CDR delivery"
+    category: "customer-critical"
+    poll_interval: "1h"
+    metadata:
+      country_codes: ["NO"]
+      dependency: "Norwegian interconnect CDR retrieval"
+      coverage: "Not monitored: SFTP host is configuration-driven; a file-freshness synthetic needs the configured endpoint and existing credentials."
+      status_url: "https://globalconnect.no/"
+      domain: "globalconnect.no"
+    collector:
+      type: "coverage_gap"
+      reason: "SFTP host is configuration-driven; a file-freshness synthetic needs the configured endpoint and existing credentials."
+
+  - id: cention
+    name: "Cention"
+    category: "customer-critical"
+    poll_interval: "1h"
+    metadata:
+      country_codes: []
+      dependency: "Customer-facing omnichannel errands via api.cention.com"
+      coverage: "Not monitored: Authenticated read-only errand API synthetic required; no verified public machine-readable incident feed."
+      status_url: "https://cention.com/trust/support"
+      domain: "cention.com"
+    collector:
+      type: "coverage_gap"
+      reason: "Authenticated read-only errand API synthetic required; no verified public machine-readable incident feed."
+
+  - id: uae-pass
+    name: "UAE Pass"
+    category: "customer-critical"
+    poll_interval: "1h"
+    metadata:
+      country_codes: ["AE"]
+      dependency: "UAE customer sign-in and identity verification"
+      coverage: "Not monitored: Production OIDC metadata and sign-in synthetic require the configured production issuer. Code defaults to staging; never monitor staging as production."
+      status_url: "https://uaepass.ae/"
+      domain: "uaepass.ae"
+    collector:
+      type: "coverage_gap"
+      reason: "Production OIDC metadata and sign-in synthetic require the configured production issuer. Code defaults to staging; never monitor staging as production."
+
+  - id: etisalat-cloudtalk
+    name: "Etisalat CloudTalk"
+    category: "customer-critical"
+    poll_interval: "1h"
+    metadata:
+      country_codes: ["AE"]
+      dependency: "UAE white-label apps and migration API on papi.cloudtalk.etisalat.ae"
+      coverage: "Not monitored: Authenticated read-only migration API and white-label sign-in checks required; no verified public incident feed."
+      status_url: "https://cloudtalk.etisalat.ae/"
+      domain: "cloudtalk.etisalat.ae"
+    collector:
+      type: "coverage_gap"
+      reason: "Authenticated read-only migration API and white-label sign-in checks required; no verified public incident feed."
+
+  - id: voxo
+    name: "Voxo.ai"
+    category: "customer-critical"
+    poll_interval: "1h"
+    metadata:
+      country_codes: []
+      dependency: "Transcription: app-core.voxo.ai login and app-speech.voxo.ai transcription"
+      coverage: "Not monitored: Read-only authentication/token validation synthetic requires a dedicated account; transcription submission must not be used as a health check."
+      status_url: "https://voxo.ai/"
+      domain: "voxo.ai"
+    collector:
+      type: "coverage_gap"
+      reason: "Read-only authentication/token validation synthetic requires a dedicated account; transcription submission must not be used as a health check."
+
+  - id: telia-mms
+    name: "Telia — MMS gateway"
+    category: "customer-critical"
+    poll_interval: "1h"
+    metadata:
+      country_codes: ["SE"]
+      dependency: "MMS SOAP gateway used by MMSCSoapClient"
+      coverage: "Not monitored: Confirm configured MMSC endpoint; use a non-sending synthetic with existing credentials. Fixed-network status does not cover MMS."
+      status_url: "https://telia.se/"
+      domain: "telia.se"
+    collector:
+      type: "coverage_gap"
+      reason: "Confirm configured MMSC endpoint; use a non-sending synthetic with existing credentials. Fixed-network status does not cover MMS."
+
+  - id: tdc-mms
+    name: "TDC — MMS gateway"
+    category: "customer-critical"
+    poll_interval: "1h"
+    metadata:
+      country_codes: ["DK"]
+      dependency: "MMS SOAP gateway and provisioning discovery via findmms.tdc.dk"
+      coverage: "Not monitored: Read-only discovery/gateway synthetic required; TDC network incidents do not establish MMS provisioning health."
+      status_url: "https://tdc.dk/"
+      domain: "tdc.dk"
+    collector:
+      type: "coverage_gap"
+      reason: "Read-only discovery/gateway synthetic required; TDC network incidents do not establish MMS provisioning health."
+
+  - id: peppol-visma
+    name: "Peppol / Visma — e-invoicing"
+    category: "second-tier"
+    poll_interval: "1h"
+    metadata:
+      country_codes: []
+      dependency: "E-invoice generation and delivery via the configured access point"
+      coverage: "Not monitored: Peppol is a network, not one provider. Confirm the configured Visma/access-point product before selecting its status component."
+      status_url: "https://status.visma.com/"
+      domain: "visma.com"
+    collector:
+      type: "coverage_gap"
+      reason: "Peppol is a network, not one provider. Confirm the configured Visma/access-point product before selecting its status component."
+
+  - id: nets
+    name: "Nets — invoice payments"
+    category: "second-tier"
+    poll_interval: "1h"
+    metadata:
+      country_codes: []
+      dependency: "Invoice payment and collection file exchange"
+      coverage: "Not monitored: Configured Nets SFTP endpoint and file-freshness synthetic required; a checkout status feed would cover a different service."
+      status_url: "https://nets.eu/"
+      domain: "nets.eu"
+    collector:
+      type: "coverage_gap"
+      reason: "Configured Nets SFTP endpoint and file-freshness synthetic required; a checkout status feed would cover a different service."
+
+  - id: printship
+    name: "Printship"
+    category: "second-tier"
+    poll_interval: "1h"
+    metadata:
+      country_codes: []
+      dependency: "Invoice printing and overdue notices (CheckOverdue)"
+      coverage: "Not monitored: Confirm the production submission endpoint and a read-only health contract; never print or send an invoice from a synthetic."
+      status_url: ""
+      domain: ""
+    collector:
+      type: "coverage_gap"
+      reason: "Confirm the production submission endpoint and a read-only health contract; never print or send an invoice from a synthetic."
+
+  - id: telenor-no
+    name: "Telenor Norway — mobile map"
+    category: "carriers"
+    poll_interval: "1h"
+    metadata:
+      country_codes: ["NO"]
+      dependency: "Norwegian upstream mobile network, including Telenor wholesale access"
+      coverage: "Not monitored: Official map publishes raster fault layers and point-identify responses, not an enumerable case feed. Open the live Norway map in ORBYTE for all outage areas; no invented incident coordinates."
+      status_url: "https://www.telenor.no/dekning/#dekningskart"
+      domain: "telenor.no"
+    collector:
+      type: "coverage_gap"
+      reason: "Official map publishes raster fault layers and point-identify responses, not an enumerable case feed. Open the live Norway map in ORBYTE for all outage areas; no invented incident coordinates."
+
+  - id: simwood
+    name: "Simwood — signup number inventory"
+    category: "customer-critical"
+    metadata:
+      dependency: "Number inventory for customer signup"
+      coverage: "Official public API and Portal component. Does not test authenticated account inventory or number reservation."
+      status_url: "https://status.simwood.com/"
+      domain: "simwood.com"
+    collector:
+      type: "statuspage"
+      base_url: "https://status.simwood.com/"
+    include_components: ["API and Portal"]
+
+  - id: creditsafe
+    name: "Creditsafe"
+    category: "second-tier"
+    metadata:
+      dependency: "Credit checks during customer onboarding"
+      coverage: "Official public Connect API and Global Gateway component states. The Swedish GetData SOAP endpoint used by CreditChecker has no dedicated component; these states are advisory and do not verify that endpoint or account credentials."
+      status_url: "https://status.creditsafe.com/"
+      domain: "creditsafe.com"
+    collector:
+      type: "hund"
+      url: "https://status.creditsafe.com/"
+    include_components: ["Connect API", "Global Gateway Service and Integrated apps"]
+
+  - id: nager-date
+    name: "Nager.Date"
+    category: "second-tier"
+    metadata:
+      dependency: "Public-holiday calendars used by holiday-based call routing (FO, AD, GL, IS)"
+      coverage: "Read-only synthetic validates nonempty, correctly dated current-year holidays for all four countries used by production. Does not verify the other nine years, S3 upload, cached calendars or Enrico (the primary holiday provider)."
+      status_url: "https://date.nager.at/"
+      domain: "date.nager.at"
+    collector:
+      type: "nager"
+      url: "https://date.nager.at/api/v3/PublicHolidays/"

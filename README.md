@@ -6,8 +6,8 @@ The current build includes:
 
 - Rust/Tokio polling engine with bounded concurrency and per-source timeouts.
 - Statuspage, Google, Apple, Meta, Salesforce, Slack and RSS advisory collectors.
-- 42 automatic public status/incident sources with explicit coverage scopes.
-  No tenant ID or manual-report source is required.
+- 45 automatic public status/API sources and 19 explicit monitoring gaps.
+  Public collection needs no tenant ID; gaps remain unknown until a verified check is configured.
 - Component filtering and normalized service/incident states.
 - In-memory and PostgreSQL status stores behind one storage trait.
 - Read-only Axum API and health endpoints.
